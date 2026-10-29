@@ -1,6 +1,7 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError, Me, session, setUnauthorizedHandler } from './api';
 import { resources } from './resources';
+import { Icon } from './Icon';
 import { can, Modal, ResourcePage } from './ResourcePage';
 
 const useHash = () => {
@@ -63,12 +64,32 @@ function Login({ onDone }: { onDone: () => void }) {
   );
 }
 
+const readCollapsed = () => { try { return localStorage.getItem('hrx_nav_collapsed') === '1'; } catch { return false; } };
+
 function Shell({ me, reload }: { me: Me; reload: () => void }) {
   const route = useHash();
   const [account, setAccount] = useState(false);
+  const [collapsed, setCollapsed] = useState(readCollapsed); // escritorio: solo iconos
+  const [open, setOpen] = useState(false);                   // móvil: cajón lateral
   const visible = resources.filter((r) => can(me, r.perm, 'ver'));
   const current = visible.find((r) => r.id === route);
   const profileCodes = [...new Map(me.profiles.map((p) => [p.code, p.name])).entries()];
+
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      try { localStorage.setItem('hrx_nav_collapsed', c ? '0' : '1'); } catch { /* sin storage */ }
+      return !c;
+    });
+  };
+
+  // El cajón móvil se cierra al navegar y con Escape.
+  useEffect(() => { setOpen(false); }, [route]);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false);
+    window.addEventListener('keydown', h);
+    return () => window.removeEventListener('keydown', h);
+  }, [open]);
 
   const logout = async () => {
     try { await api('POST', 'auth/logout'); } catch { /* token ya inválido */ }
@@ -76,10 +97,24 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
   };
 
   return (
-    <div className="shell">
-      <nav>
-        <a href="#/" className="brand">HRX</a>
-        {visible.map((r) => <a key={r.id} href={`#/${r.id}`} className={r.id === route ? 'active' : ''}>{r.title}</a>)}
+    <div className={`shell${collapsed ? ' collapsed' : ''}${open ? ' open' : ''}`}>
+      <header className="topbar">
+        <button onClick={() => setOpen(true)} aria-label="Abrir menú" aria-expanded={open}><Icon name="menu" /></button>
+        <strong>{current?.title ?? 'HRX'}</strong>
+      </header>
+      {open && <div className="backdrop" onClick={() => setOpen(false)} />}
+      <nav aria-label="Menú principal">
+        <div className="nav-head">
+          <a href="#/" className="brand">HRX</a>
+          <button className="toggle desktop-only" onClick={toggleCollapsed} aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'} title={collapsed ? 'Expandir menú' : 'Colapsar menú'}>
+            <Icon name={collapsed ? 'expand' : 'collapse'} />
+          </button>
+          <button className="toggle mobile-only" onClick={() => setOpen(false)} aria-label="Cerrar menú"><Icon name="close" /></button>
+        </div>
+        <a href="#/" className={route === '' ? 'active' : ''} title="Inicio"><Icon name="home" /><span>Inicio</span></a>
+        {visible.map((r) => (
+          <a key={r.id} href={`#/${r.id}`} className={r.id === route ? 'active' : ''} title={r.title}><Icon name={r.id} /><span>{r.title}</span></a>
+        ))}
         <div className="spacer" />
         {profileCodes.length > 1 && (
           <label className="profile"><span>Perfil activo</span>
@@ -89,8 +124,8 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
             </select>
           </label>
         )}
-        <button onClick={() => setAccount(true)}>{me.email}</button>
-        <button onClick={logout}>Salir</button>
+        <button className="navbtn" onClick={() => setAccount(true)} title="Cambiar contraseña"><Icon name="user" /><span>{me.email}</span></button>
+        <button className="navbtn" onClick={logout} title="Salir"><Icon name="logout" /><span>Salir</span></button>
       </nav>
       <main>
         {current ? <ResourcePage key={current.id} res={current} me={me} /> : <Home me={me} />}
