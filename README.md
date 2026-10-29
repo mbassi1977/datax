@@ -35,6 +35,14 @@ y Laravel la sirve en `/`. Para modificarla: `cd web && npm install && npm run b
 | DELETE | `/api/v1/users/{id}/profiles/{asignación}` | `usuarios.editar` |
 | POST | `/api/v1/me/password` | token |
 
+### Importador universal (Excel / CSV)
+`.xlsx` o `.csv` (`;` `,` o tabulador; UTF-8 o Windows-1252), máx. 5 MB y 5.000 filas. Flujo en la web: *Datos → Importaciones*.
+Por API: `GET imports/targets` → `POST imports` (multipart `target`, `file`, `template_id?`; devuelve columnas, vista previa y mapeo sugerido)
+→ `POST imports/{id}/run` (`mode: simulate|commit`, `mapping` campo→índice de columna, `update_existing`, `on_error: skip|abort`,
+`organization_id?`, `save_template_as?`) → `GET imports[/{id}]`. Destinos: `organizations` y `people`; los registros existentes se
+detectan por RUT. Respeta permisos y alcance: cada fila se valida contra lo que el usuario puede crear o editar.
+Los archivos subidos se borran al terminar; `php artisan imports:prune` (diario) elimina los abandonados. Requiere `php-zip` para `.xlsx`.
+
 Asignar perfil: `{profile, scope_type, scope_id, valid_from?, valid_until?}`. Solo se puede asignar un perfil cuyos permisos
 y alcance ya se poseen (sin escalamiento), y `superadmin` solo lo asigna un superadmin. Suspender un usuario o cambiarle la
 clave cierra sus sesiones.

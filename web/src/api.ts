@@ -39,3 +39,30 @@ export type Me = {
   id: string; email: string; is_superadmin: boolean; permissions: string[];
   profiles: { code: string; name: string; scope_type: string; scope_id: string | null }[];
 };
+
+/** Subida de archivos (multipart). */
+export async function upload<T = any>(path: string, form: FormData): Promise<T> {
+  const headers: Record<string, string> = { Accept: 'application/json' };
+  const token = session.token();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const profile = session.profile();
+  if (profile) headers['X-Profile'] = profile;
+  const res = await fetch(`/api/v1/${path}`, { method: 'POST', headers, body: form });
+  const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && token) onUnauthorized();
+  if (!res.ok) throw new ApiError(res.status, data.message ?? `Error ${res.status}`, data.errors ?? {});
+  return data as T;
+}
+
+/** Descarga un archivo autenticado (la API exige el token, no sirve un enlace directo). */
+export async function download(path: string, filename: string): Promise<void> {
+  const headers: Record<string, string> = {};
+  const token = session.token();
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(`/api/v1/${path}`, { headers });
+  if (!res.ok) throw new ApiError(res.status, `Error ${res.status}`);
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}

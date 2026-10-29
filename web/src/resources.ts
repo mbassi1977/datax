@@ -7,8 +7,10 @@ export type Field = {
   required?: boolean; createOnly?: boolean; help?: string;
 };
 
-export type Resource = {
-  id: string; title: string; path: string; perm: string; group: string;
+export type NavItem = { id: string; title: string; perm: string; group: string };
+
+export type Resource = NavItem & {
+  path: string;
   columns: { key: string; label: string; render?: (r: any, refs: Record<string, any[]>) => string }[];
   fields: Field[];
   profilesPanel?: boolean;
@@ -88,4 +90,7 @@ export const resources: Resource[] = [
 ];
 
 // Orden de los grupos del menú (acordeón).
-export const groupOrder = ['Estructura', 'Personas y proyectos', 'Administración'];
+export const groupOrder = ['Estructura', 'Personas y proyectos', 'Datos', 'Administración'];
+
+// Pantallas con interfaz propia (no son un CRUD genérico).
+export const pages: NavItem[] = [{ id: 'imports', title: 'Importaciones', perm: 'importaciones', group: 'Datos' }];

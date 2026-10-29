@@ -1,6 +1,8 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError, Me, session, setUnauthorizedHandler } from './api';
-import { groupOrder, resources } from './resources';
+import { groupOrder, pages, resources } from './resources';
+import type { NavItem } from './resources';
+import { ImportsPage } from './ImportsPage';
 import { Icon } from './Icon';
 import { can, Modal, ResourcePage } from './ResourcePage';
 
@@ -75,8 +77,9 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
   const [account, setAccount] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed); // escritorio: solo iconos
   const [open, setOpen] = useState(false);                   // móvil: cajón lateral
-  const visible = resources.filter((r) => can(me, r.perm, 'ver'));
+  const visible: NavItem[] = [...resources, ...pages].filter((r) => can(me, r.perm, 'ver'));
   const current = visible.find((r) => r.id === route);
+  const currentResource = resources.find((r) => r.id === current?.id);
   const profileCodes = [...new Map(me.profiles.map((p) => [p.code, p.name])).entries()];
   const groups = groupOrder.map((g) => ({ name: g, items: visible.filter((r) => r.group === g) })).filter((g) => g.items.length > 0);
 
@@ -152,7 +155,9 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
         <button className="navbtn" onClick={logout} title="Salir"><Icon name="logout" /><span>Salir</span></button>
       </nav>
       <main>
-        {current ? <ResourcePage key={current.id} res={current} me={me} /> : <Home me={me} />}
+        {currentResource ? <ResourcePage key={currentResource.id} res={currentResource} me={me} />
+          : current?.id === 'imports' ? <ImportsPage me={me} />
+          : <Home me={me} />}
       </main>
       {account && <Account onClose={() => setAccount(false)} />}
     </div>

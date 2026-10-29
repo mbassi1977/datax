@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AreaController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\CostCenterController;
+use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\OrganizationController;
 use App\Http\Controllers\Api\V1\PersonController;
 use App\Http\Controllers\Api\V1\ProjectController;
@@ -29,6 +30,16 @@ Route::prefix('v1')->group(function () {
         Route::post('organizations', [OrganizationController::class, 'store'])->middleware('permission:organizaciones.crear');
         Route::put('organizations/{id}', [OrganizationController::class, 'update'])->middleware('permission:organizaciones.editar');
         Route::delete('organizations/{id}', [OrganizationController::class, 'destroy'])->middleware('permission:organizaciones.eliminar');
+
+        // Importador universal (Excel/CSV): subir -> mapear -> simular -> cargar
+        Route::get('imports/targets', [ImportController::class, 'targets'])->middleware('permission:importaciones.ver');
+        Route::get('imports/targets/{target}/template', [ImportController::class, 'template'])->middleware('permission:importaciones.ver');
+        Route::get('imports', [ImportController::class, 'index'])->middleware('permission:importaciones.ver');
+        Route::get('imports/{id}', [ImportController::class, 'show'])->middleware('permission:importaciones.ver');
+        Route::post('imports', [ImportController::class, 'upload'])->middleware('permission:importaciones.crear');
+        Route::post('imports/{id}/run', [ImportController::class, 'run'])->middleware('permission:importaciones.crear');
+        Route::get('import-templates', [ImportController::class, 'templates'])->middleware('permission:importaciones.ver');
+        Route::delete('import-templates/{id}', [ImportController::class, 'destroyTemplate'])->middleware('permission:importaciones.crear');
 
         // Recursos acotados por tenant y alcance: ruta => [controlador, prefijo de permisos]
         $resources = [

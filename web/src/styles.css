@@ -81,3 +81,14 @@ tr:last-child td { border-bottom: 0; } td.actions { text-align: right; display: 
   .overlay { padding: 0; } .modal { border-radius: 0; min-height: 100vh; }
   td.actions { flex-wrap: wrap; }
 }
+
+/* Importaciones */
+.section { margin: 1.6rem 0 .6rem; } .card.pad { margin-bottom: 1rem; }
+button.link { border: 0; background: none; padding: 0; color: var(--primary); text-decoration: underline; }
+td.wrap { white-space: normal; min-width: 260px; }
+.badge { padding: .15rem .55rem; border-radius: 999px; font-size: .78rem; background: var(--border); }
+.badge.completed { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--ok); }
+.badge.rejected, .badge.failed { background: color-mix(in srgb, var(--danger) 20%, transparent); color: var(--danger); }
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .6rem; margin: .6rem 0 1rem; }
+.stat { border: 1px solid var(--border); border-radius: 8px; padding: .6rem .8rem; display: flex; flex-direction: column; } .stat strong { font-size: 1.5rem; }
+.stat span { color: var(--muted); font-size: .82rem; } .stat.ok strong { color: var(--ok); } .stat.bad strong { color: var(--danger); }
