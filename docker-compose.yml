@@ -10,7 +10,10 @@ services:
   redis:
     image: redis:7
     ports: ["6379:6379"]
+  # Archivos: se activa con `docker compose --profile storage up -d`
+  # (el núcleo aún no sube archivos).
   minio:
+    profiles: [storage]
     image: quay.io/minio/minio
     command: server /data --console-address ":9001"
     environment:
