@@ -8,7 +8,7 @@ export type Field = {
 };
 
 export type Resource = {
-  id: string; title: string; path: string; perm: string;
+  id: string; title: string; path: string; perm: string; group: string;
   columns: { key: string; label: string; render?: (r: any, refs: Record<string, any[]>) => string }[];
   fields: Field[];
   profilesPanel?: boolean;
@@ -22,7 +22,7 @@ const roles = ['trabajador', 'consultor', 'relator', 'evaluador', 'participante'
 
 export const resources: Resource[] = [
   {
-    id: 'organizations', title: 'Organizaciones', path: 'organizations', perm: 'organizaciones',
+    id: 'organizations', title: 'Organizaciones', path: 'organizations', perm: 'organizaciones', group: 'Estructura',
     columns: [{ key: 'legal_name', label: 'Razón social' }, { key: 'rut', label: 'RUT' }, { key: 'type', label: 'Tipo' }, { key: 'status', label: 'Estado' }],
     fields: [
       { key: 'legal_name', label: 'Razón social', required: true }, { key: 'trade_name', label: 'Nombre de fantasía' }, { key: 'rut', label: 'RUT' },
@@ -32,24 +32,24 @@ export const resources: Resource[] = [
     ],
   },
   {
-    id: 'branches', title: 'Sucursales', path: 'branches', perm: 'sucursales',
+    id: 'branches', title: 'Sucursales', path: 'branches', perm: 'sucursales', group: 'Estructura',
     columns: [{ key: 'name', label: 'Nombre' }, { key: 'organization_id', label: 'Organización', render: orgName }, { key: 'commune', label: 'Comuna' }],
     fields: [org, { key: 'name', label: 'Nombre', required: true }, { key: 'address', label: 'Dirección' }, { key: 'commune', label: 'Comuna' }, status],
   },
   {
-    id: 'areas', title: 'Áreas', path: 'areas', perm: 'areas',
+    id: 'areas', title: 'Áreas', path: 'areas', perm: 'areas', group: 'Estructura',
     columns: [{ key: 'name', label: 'Nombre' }, { key: 'organization_id', label: 'Organización', render: orgName }],
     fields: [org, { key: 'name', label: 'Nombre', required: true },
       { key: 'parent_id', label: 'Área superior', type: 'ref', ref: { path: 'areas', label: (a) => a.name } }, status],
   },
   {
-    id: 'cost-centers', title: 'Centros de costo', path: 'cost-centers', perm: 'centros_costo',
+    id: 'cost-centers', title: 'Centros de costo', path: 'cost-centers', perm: 'centros_costo', group: 'Estructura',
     columns: [{ key: 'code', label: 'Código' }, { key: 'name', label: 'Nombre' }, { key: 'organization_id', label: 'Organización', render: orgName }],
     fields: [org, { key: 'code', label: 'Código', required: true }, { key: 'name', label: 'Nombre', required: true },
       { key: 'area_id', label: 'Área', type: 'ref', ref: { path: 'areas', label: (a) => a.name } }, status],
   },
   {
-    id: 'people', title: 'Personas', path: 'people', perm: 'personas',
+    id: 'people', title: 'Personas', path: 'people', perm: 'personas', group: 'Personas y proyectos',
     columns: [
       { key: 'first_name', label: 'Nombre', render: (r) => `${r.first_name} ${r.last_name ?? ''}`.trim() }, { key: 'rut', label: 'RUT' },
       { key: 'job_title', label: 'Cargo' }, { key: 'roles', label: 'Roles', render: (r) => (r.roles ?? []).join(', ') }, { key: 'organization_id', label: 'Organización', render: orgName },
@@ -66,7 +66,7 @@ export const resources: Resource[] = [
     ],
   },
   {
-    id: 'projects', title: 'Proyectos', path: 'projects', perm: 'proyectos',
+    id: 'projects', title: 'Proyectos', path: 'projects', perm: 'proyectos', group: 'Personas y proyectos',
     columns: [{ key: 'code', label: 'Código' }, { key: 'name', label: 'Nombre' }, { key: 'organization_id', label: 'Organización', render: orgName }, { key: 'status', label: 'Estado' }, { key: 'ends_on', label: 'Término' }],
     fields: [
       org, { key: 'name', label: 'Nombre', required: true }, { key: 'code', label: 'Código' }, { key: 'description', label: 'Descripción', type: 'textarea' },
@@ -77,7 +77,7 @@ export const resources: Resource[] = [
     ],
   },
   {
-    id: 'users', title: 'Usuarios', path: 'users', perm: 'usuarios', profilesPanel: true,
+    id: 'users', title: 'Usuarios', path: 'users', perm: 'usuarios', group: 'Administración', profilesPanel: true,
     columns: [{ key: 'email', label: 'Correo' }, { key: 'organization_id', label: 'Organización', render: orgName }, { key: 'status', label: 'Estado' }, { key: 'last_login_at', label: 'Último acceso', render: (r) => r.last_login_at?.slice(0, 16).replace('T', ' ') ?? '—' }],
     fields: [
       { ...orgOptional, label: 'Organización principal' }, { key: 'email', label: 'Correo', type: 'email', required: true },
@@ -86,3 +86,6 @@ export const resources: Resource[] = [
     ],
   },
 ];
+
+// Orden de los grupos del menú (acordeón).
+export const groupOrder = ['Estructura', 'Personas y proyectos', 'Administración'];

@@ -35,8 +35,20 @@ nav .toggle { padding: .35rem; line-height: 0; border-color: transparent; } nav 
 nav .profile { margin-bottom: .4rem; } nav .profile span { color: var(--nav-text); opacity: .7; } nav select { background: rgba(255,255,255,.08); color: var(--nav-text); border-color: rgba(255,255,255,.18); }
 .topbar, .backdrop, .mobile-only { display: none; }
 
+/* Acordeón por grupo */
+.group { display: flex; flex-direction: column; margin-top: .3rem; }
+nav .group-head { display: flex; align-items: center; justify-content: space-between; width: 100%; border-color: transparent; padding: .4rem .7rem; font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; opacity: .75; }
+nav .group-head:hover { opacity: 1; background: rgba(255,255,255,.06); }
+.group-head .icon { width: 16px; height: 16px; transition: transform .18s ease; } .group.open .group-head .icon { transform: rotate(180deg); }
+.group-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .18s ease; } .group.open .group-body { grid-template-rows: 1fr; }
+.group-body > div { overflow: hidden; display: flex; flex-direction: column; gap: .2rem; }
+@media (prefers-reduced-motion: reduce) { .group-body, .group-head .icon, .shell { transition: none; } }
+
 /* Escritorio colapsado: solo iconos, con el texto disponible como tooltip (title). */
 .shell.collapsed nav { padding-inline: .4rem; }
+.shell.collapsed .group-head { display: none; }
+.shell.collapsed .group { margin-top: 0; border-top: 1px solid rgba(255,255,255,.1); padding-top: .3rem; margin-top: .3rem; }
+.shell.collapsed .group-body { grid-template-rows: 1fr; } /* colapsado: solo iconos, todos visibles */
 .shell.collapsed nav a span, .shell.collapsed nav .navbtn span, .shell.collapsed nav .profile, .shell.collapsed .brand { display: none; }
 .shell.collapsed .nav-head { justify-content: center; }
 .shell.collapsed nav a, .shell.collapsed nav .navbtn { justify-content: center; padding-inline: 0; }
@@ -61,6 +73,8 @@ tr:last-child td { border-bottom: 0; } td.actions { text-align: right; display: 
   .backdrop { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.45); z-index: 25; }
   /* En móvil el cajón siempre muestra texto, aunque el modo colapsado esté guardado. */
   .shell.collapsed nav a span, .shell.collapsed nav .navbtn span, .shell.collapsed nav .profile { display: revert; }
+  .shell.collapsed .group-head { display: flex; } .shell.collapsed .group { border-top: 0; padding-top: 0; margin-top: .3rem; }
+  .shell.collapsed .group:not(.open) .group-body { grid-template-rows: 0fr; }
   .shell.collapsed .brand { display: inline; } .shell.collapsed .nav-head { justify-content: space-between; }
   .shell.collapsed nav a, .shell.collapsed nav .navbtn { justify-content: flex-start; padding-inline: .7rem; }
   .form { grid-template-columns: 1fr; } main { padding: 1rem; } .search input { width: 100%; } .search { flex: 1 1 100%; order: 3; }

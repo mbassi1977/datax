@@ -1,6 +1,6 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError, Me, session, setUnauthorizedHandler } from './api';
-import { resources } from './resources';
+import { groupOrder, resources } from './resources';
 import { Icon } from './Icon';
 import { can, Modal, ResourcePage } from './ResourcePage';
 
@@ -64,6 +64,10 @@ function Login({ onDone }: { onDone: () => void }) {
   );
 }
 
+const readOpenGroups = (): string[] => {
+  try { return JSON.parse(localStorage.getItem('hrx_nav_groups') ?? 'null') ?? [groupOrder[0]]; } catch { return [groupOrder[0]]; }
+};
+const saveOpenGroups = (g: string[]) => { try { localStorage.setItem('hrx_nav_groups', JSON.stringify(g)); } catch { /* sin storage */ } return g; };
 const readCollapsed = () => { try { return localStorage.getItem('hrx_nav_collapsed') === '1'; } catch { return false; } };
 
 function Shell({ me, reload }: { me: Me; reload: () => void }) {
@@ -74,6 +78,14 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
   const visible = resources.filter((r) => can(me, r.perm, 'ver'));
   const current = visible.find((r) => r.id === route);
   const profileCodes = [...new Map(me.profiles.map((p) => [p.code, p.name])).entries()];
+  const groups = groupOrder.map((g) => ({ name: g, items: visible.filter((r) => r.group === g) })).filter((g) => g.items.length > 0);
+
+  // Acordeón: cada grupo se abre/cierra por separado; el grupo de la sección actual siempre queda abierto.
+  const [openGroups, setOpenGroups] = useState<string[]>(readOpenGroups);
+  useEffect(() => {
+    if (current && !openGroups.includes(current.group)) setOpenGroups((o) => saveOpenGroups([...o, current.group]));
+  }, [current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const toggleGroup = (g: string) => setOpenGroups((o) => saveOpenGroups(o.includes(g) ? o.filter((x) => x !== g) : [...o, g]));
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
@@ -112,9 +124,21 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
           <button className="toggle mobile-only" onClick={() => setOpen(false)} aria-label="Cerrar menú"><Icon name="close" /></button>
         </div>
         <a href="#/" className={route === '' ? 'active' : ''} title="Inicio"><Icon name="home" /><span>Inicio</span></a>
-        {visible.map((r) => (
-          <a key={r.id} href={`#/${r.id}`} className={r.id === route ? 'active' : ''} title={r.title}><Icon name={r.id} /><span>{r.title}</span></a>
-        ))}
+        {groups.map((g, i) => {
+          const isOpen = openGroups.includes(g.name);
+          return (
+            <div key={g.name} className={`group${isOpen ? ' open' : ''}`}>
+              <button className="group-head" onClick={() => toggleGroup(g.name)} aria-expanded={isOpen} aria-controls={`grp-${i}`}>
+                <span>{g.name}</span><Icon name="chevron" />
+              </button>
+              <div className="group-body" id={`grp-${i}`}><div>
+                {g.items.map((r) => (
+                  <a key={r.id} href={`#/${r.id}`} className={r.id === route ? 'active' : ''} title={r.title} tabIndex={isOpen ? 0 : -1}><Icon name={r.id} /><span>{r.title}</span></a>
+                ))}
+              </div></div>
+            </div>
+          );
+        })}
         <div className="spacer" />
         {profileCodes.length > 1 && (
           <label className="profile"><span>Perfil activo</span>
