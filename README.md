@@ -20,6 +20,13 @@ php artisan test                          # requiere una base `hrx_test` en el m
 | POST | `/api/v1/auth/logout` | token |
 | GET | `/api/v1/me` | token |
 | GET/POST/PUT/DELETE | `/api/v1/organizations[/{id}]` | `organizaciones.ver/crear/editar/eliminar` |
+| GET/POST/PUT/DELETE | `/api/v1/branches[/{id}]` | `sucursales.*` |
+| GET/POST/PUT/DELETE | `/api/v1/areas[/{id}]` | `areas.*` |
+| GET/POST/PUT/DELETE | `/api/v1/cost-centers[/{id}]` | `centros_costo.*` |
+| GET/POST/PUT/DELETE | `/api/v1/people[/{id}]` | `personas.*` |
+| GET/POST/PUT/DELETE | `/api/v1/projects[/{id}]` | `proyectos.*` |
+
+Los listados aceptan `?q=` (búsqueda) y `?organization_id=`. Los registros sin organización (personas) solo son visibles con alcance global.
 
 Autenticación: `Authorization: Bearer <token>`. Perfil activo opcional: header `X-Profile: <código>`.
 Los resultados se filtran por tenant y por alcance del perfil (global, holding, organización, sucursal, área, proyecto).
