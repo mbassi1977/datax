@@ -11,13 +11,15 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
-#[Fillable(['tenant_id', 'person_id', 'organization_id', 'email', 'password', 'status'])]
+#[Fillable(['tenant_id', 'person_id', 'organization_id', 'email', 'password', 'status', 'created_by', 'updated_by'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     use Auditable, HasApiTokens, HasUuids, Notifiable, SoftDeletes;
 
     protected $table = 'security.users';
+
+    protected $attributes = ['status' => 'active']; // igual que el default de la columna
 
     protected function casts(): array
     {

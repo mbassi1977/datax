@@ -48,6 +48,25 @@ class AuthController extends Controller
         return response()->json(['message' => 'Sesión cerrada.']);
     }
 
+    public function changePassword(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'current_password' => ['required', 'string'],
+            'password' => ['required', 'confirmed', \Illuminate\Validation\Rules\Password::min(10)->letters()->numbers(), 'different:current_password'],
+        ]);
+        $user = $request->user();
+
+        if (! Hash::check($data['current_password'], $user->password)) {
+            return response()->json(['message' => 'La clave actual no coincide.'], 422);
+        }
+
+        $user->update(['password' => $data['password']]);
+        $user->tokens()->where('id', '!=', $user->currentAccessToken()->id)->delete(); // cierra las demás sesiones
+        AuditEvent::record('password_changed');
+
+        return response()->json(['message' => 'Clave actualizada.']);
+    }
+
     public function me(Request $request, AccessService $access): JsonResponse
     {
         $user = $request->user();

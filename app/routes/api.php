@@ -7,14 +7,22 @@ use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\OrganizationController;
 use App\Http\Controllers\Api\V1\PersonController;
 use App\Http\Controllers\Api\V1\ProjectController;
+use App\Http\Controllers\Api\V1\UserController;
+use App\Http\Controllers\Api\V1\UserProfileController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
-    Route::middleware('auth:sanctum')->group(function () {
+    Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('me', [AuthController::class, 'me']);
+        Route::post('me/password', [AuthController::class, 'changePassword']);
+
+        Route::get('profiles', [UserProfileController::class, 'profiles'])->middleware('permission:perfiles.ver');
+        Route::get('users/{userId}/profiles', [UserProfileController::class, 'index'])->middleware('permission:usuarios.ver');
+        Route::post('users/{userId}/profiles', [UserProfileController::class, 'assign'])->middleware('permission:usuarios.editar');
+        Route::delete('users/{userId}/profiles/{assignmentId}', [UserProfileController::class, 'revoke'])->middleware('permission:usuarios.editar');
 
         Route::get('organizations', [OrganizationController::class, 'index'])->middleware('permission:organizaciones.ver');
         Route::get('organizations/{id}', [OrganizationController::class, 'show'])->middleware('permission:organizaciones.ver');
@@ -29,6 +37,7 @@ Route::prefix('v1')->group(function () {
             'cost-centers' => [CostCenterController::class, 'centros_costo'],
             'people' => [PersonController::class, 'personas'],
             'projects' => [ProjectController::class, 'proyectos'],
+            'users' => [UserController::class, 'usuarios'],
         ];
         foreach ($resources as $path => [$controller, $perm]) {
             Route::get($path, [$controller, 'index'])->middleware("permission:$perm.ver");

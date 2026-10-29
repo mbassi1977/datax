@@ -25,6 +25,15 @@ php artisan test                          # requiere una base `hrx_test` en el m
 | GET/POST/PUT/DELETE | `/api/v1/cost-centers[/{id}]` | `centros_costo.*` |
 | GET/POST/PUT/DELETE | `/api/v1/people[/{id}]` | `personas.*` |
 | GET/POST/PUT/DELETE | `/api/v1/projects[/{id}]` | `proyectos.*` |
+| GET/POST/PUT/DELETE | `/api/v1/users[/{id}]` | `usuarios.*` |
+| GET | `/api/v1/profiles` | `perfiles.ver` |
+| GET/POST | `/api/v1/users/{id}/profiles` | `usuarios.ver` / `usuarios.editar` |
+| DELETE | `/api/v1/users/{id}/profiles/{asignación}` | `usuarios.editar` |
+| POST | `/api/v1/me/password` | token |
+
+Asignar perfil: `{profile, scope_type, scope_id, valid_from?, valid_until?}`. Solo se puede asignar un perfil cuyos permisos
+y alcance ya se poseen (sin escalamiento), y `superadmin` solo lo asigna un superadmin. Suspender un usuario o cambiarle la
+clave cierra sus sesiones.
 
 Los listados aceptan `?q=` (búsqueda) y `?organization_id=`. Los registros sin organización (personas) solo son visibles con alcance global.
 

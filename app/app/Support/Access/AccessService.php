@@ -74,8 +74,37 @@ class AccessService
         return $allowed === null || in_array($organizationId, $allowed, true);
     }
 
+    /**
+     * Anti-escalamiento: solo se puede asignar un perfil si quien lo asigna ya tiene
+     * cada uno de sus permisos, con un alcance que cubra el destino.
+     */
+    public function canGrant(User $grantor, string $profileId, string $scopeType, ?string $scopeId, ?string $activeProfile = null): bool
+    {
+        if ($grantor->is_superadmin) {
+            return true;
+        }
+
+        $permissions = DB::table('security.profile_permissions as pp')
+            ->join('security.permissions as pm', 'pm.id', '=', 'pp.permission_id')
+            ->where('pp.profile_id', $profileId)->pluck('pm.code');
+
+        $target = $scopeType === 'global' ? null : $this->organizationsOfScope($grantor->tenant_id, $scopeType, $scopeId);
+
+        foreach ($permissions as $permission) {
+            $allowed = $this->allowedOrganizationIds($grantor, $permission, $activeProfile);
+            if ($allowed === null) {
+                continue; // alcance global: cubre cualquier destino
+            }
+            if ($target === null || array_diff($target, $allowed) !== []) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /** Resuelve el alcance (holding, sucursal, área, proyecto...) a las organizaciones que cubre. */
-    private function organizationsOfScope(string $tenantId, string $type, ?string $scopeId): array
+    public function organizationsOfScope(string $tenantId, string $type, ?string $scopeId): array
     {
         if ($scopeId === null) {
             return [];
