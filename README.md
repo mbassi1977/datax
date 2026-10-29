@@ -13,6 +13,10 @@ php artisan serve
 php artisan test                          # requiere una base `hrx_test` en el mismo PostgreSQL
 ```
 
+## Interfaz web
+Código en `web/` (React + TypeScript + Vite). Se compila a `app/public/ui` (versionado, para no exigir Node en el servidor)
+y Laravel la sirve en `/`. Para modificarla: `cd web && npm install && npm run build` (o `npm run dev` con la API en :8000).
+
 ## API v1
 | Método | Ruta | Permiso |
 |---|---|---|

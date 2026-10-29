@@ -1,0 +1,37 @@
+<?php
+
+return [
+    'required' => 'El campo :attribute es obligatorio.',
+    'required_unless' => 'El campo :attribute es obligatorio.',
+    'email' => 'El campo :attribute debe ser un correo válido.',
+    'unique' => 'Ya existe un registro con ese :attribute.',
+    'exists' => 'El :attribute seleccionado no es válido para esta organización.',
+    'in' => 'El valor de :attribute no es válido.',
+    'not_in' => 'El valor de :attribute no es válido.',
+    'uuid' => 'El campo :attribute no es un identificador válido.',
+    'date' => 'El campo :attribute debe ser una fecha válida.',
+    'after_or_equal' => 'El campo :attribute debe ser igual o posterior a :date.',
+    'confirmed' => 'La confirmación de :attribute no coincide.',
+    'different' => 'El campo :attribute debe ser distinto de :other.',
+    'array' => 'El campo :attribute debe ser una lista.',
+    'string' => 'El campo :attribute debe ser texto.',
+    'max' => ['string' => 'El campo :attribute no puede superar :max caracteres.'],
+    'min' => ['string' => 'El campo :attribute debe tener al menos :min caracteres.'],
+    'password' => [
+        'letters' => 'La :attribute debe incluir al menos una letra.',
+        'numbers' => 'La :attribute debe incluir al menos un número.',
+        'mixed' => 'La :attribute debe incluir mayúsculas y minúsculas.',
+        'symbols' => 'La :attribute debe incluir al menos un símbolo.',
+        'uncompromised' => 'La :attribute aparece en filtraciones de datos; elija otra.',
+    ],
+    'attributes' => [
+        'organization_id' => 'organización', 'legal_name' => 'razón social', 'trade_name' => 'nombre de fantasía',
+        'rut' => 'RUT', 'email' => 'correo', 'password' => 'contraseña', 'current_password' => 'contraseña actual',
+        'first_name' => 'nombre', 'last_name' => 'apellido', 'name' => 'nombre', 'code' => 'código',
+        'starts_on' => 'fecha de inicio', 'ends_on' => 'fecha de término', 'phone' => 'teléfono',
+        'cost_center_id' => 'centro de costo', 'area_id' => 'área', 'parent_id' => 'área superior',
+        'branch_id' => 'sucursal', 'manager_id' => 'responsable', 'supervisor_id' => 'supervisor',
+        'person_id' => 'persona', 'status' => 'estado', 'roles' => 'roles', 'profile' => 'perfil',
+        'scope_type' => 'tipo de alcance', 'scope_id' => 'alcance', 'valid_until' => 'vigencia', 'birth_date' => 'fecha de nacimiento',
+    ],
+];
