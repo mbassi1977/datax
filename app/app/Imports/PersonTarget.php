@@ -18,8 +18,10 @@ class PersonTarget extends ImportTarget
     {
         return [
             'rut' => ['label' => 'RUT', 'synonyms' => ['rut trabajador', 'run', 'identificador', 'documento'], 'example' => '12.345.678-5'],
-            'first_name' => ['label' => 'Nombres', 'required' => true, 'synonyms' => ['nombre', 'primer nombre'], 'example' => 'Ana'],
-            'last_name' => ['label' => 'Apellidos', 'synonyms' => ['apellido', 'apellido paterno'], 'example' => 'Pérez Soto'],
+            'full_name' => ['label' => 'Nombre completo (se separa en nombres y apellidos)', 'synonyms' => ['nombre completo', 'nombres y apellidos', 'apellidos y nombres', 'trabajador', 'colaborador', 'funcionario', 'participante', 'persona'], 'example' => 'Ana María Pérez Soto'],
+            'first_name' => ['label' => 'Nombres', 'required' => true, 'required_unless' => 'full_name', 'synonyms' => ['nombre', 'primer nombre', 'nombres de pila'], 'example' => 'Ana María'],
+            'last_name' => ['label' => 'Apellido paterno', 'synonyms' => ['primer apellido', 'paterno', 'ap paterno', 'apellido', 'apellidos'], 'example' => 'Pérez'],
+            'second_last_name' => ['label' => 'Apellido materno', 'synonyms' => ['segundo apellido', 'materno', 'ap materno'], 'example' => 'Soto'],
             'email' => ['label' => 'Correo', 'synonyms' => ['email', 'mail', 'correo electronico'], 'example' => 'ana@empresa.cl'],
             'phone' => ['label' => 'Teléfono', 'synonyms' => ['telefono', 'celular', 'fono', 'movil'], 'example' => '+56 9 1234 5678'],
             'birth_date' => ['label' => 'Fecha de nacimiento', 'synonyms' => ['nacimiento', 'fecha nac', 'f nacimiento'], 'example' => '15/03/1990'],
@@ -37,10 +39,10 @@ class PersonTarget extends ImportTarget
         $data = [];
         $errors = [];
 
-        if ($v = $this->required($raw, 'first_name', $errors)) {
-            mb_strlen($v) > 255 ? $errors['first_name'] = 'Máximo 255 caracteres.' : $data['first_name'] = $v;
-        }
+        $this->names($raw, $data, $errors, $ctx);
         $this->text($raw, 'last_name', $data, 255, $errors);
+        $this->text($raw, 'second_last_name', $data, 255, $errors);
+        $this->applySplit($data, $raw, $errors, $ctx);
         $this->text($raw, 'phone', $data, 30, $errors);
         $this->text($raw, 'sex', $data, 20, $errors);
         $this->text($raw, 'nationality', $data, 255, $errors);
@@ -78,6 +80,60 @@ class PersonTarget extends ImportTarget
         }
 
         return [$data, $errors];
+    }
+
+    /** Nombres: de su columna, o de la separación del nombre completo (ver applySplit). */
+    private function names(array $raw, array &$data, array &$errors, ImportContext $ctx): void
+    {
+        $first = trim((string) ($raw['first_name'] ?? ''));
+        if ($first !== '') {
+            mb_strlen($first) > 255 ? $errors['first_name'] = 'Máximo 255 caracteres.' : $data['first_name'] = $first;
+        } elseif (trim((string) ($raw['full_name'] ?? '')) === '') {
+            $errors['first_name'] = 'Es obligatorio.';
+        }
+    }
+
+    /**
+     * Si viene "nombre completo", lo separa. Las columnas de nombres/apellidos explícitas mandan sobre la separación.
+     * Confianza baja = error (no se carga sin revisión); media = se carga y se avisa; alta = silencioso.
+     * Una corrección manual (name_overrides[fila]) reemplaza la separación.
+     */
+    private function applySplit(array &$data, array $raw, array &$errors, ImportContext $ctx): void
+    {
+        $full = trim((string) ($raw['full_name'] ?? ''));
+        if ($full === '') {
+            return;
+        }
+
+        $override = $ctx->options['name_overrides'][$ctx->currentRow] ?? null;
+        if ($override) {
+            $parts = ['first_name' => trim((string) ($override['first_name'] ?? '')) ?: null, 'last_name' => trim((string) ($override['last_name'] ?? '')) ?: null,
+                'second_last_name' => trim((string) ($override['second_last_name'] ?? '')) ?: null, 'confidence' => 'manual', 'note' => 'Corregida por usted.'];
+        } else {
+            $parts = NameSplitter::split($full, $ctx->options['name_format'] ?? 'auto');
+        }
+
+        $usedSplit = false;
+        foreach (['first_name', 'last_name', 'second_last_name'] as $f) {
+            if (! isset($data[$f]) && ! empty($parts[$f])) {
+                $data[$f] = $parts[$f];
+                $usedSplit = true;
+            }
+        }
+        if (empty($data['first_name'])) {
+            $errors['full_name'] = 'No se pudo obtener los nombres a partir de «'.$full.'».';
+
+            return;
+        }
+        if (! $usedSplit || $parts['confidence'] === 'high') {
+            return;
+        }
+
+        $ctx->warnings[] = ['row' => $ctx->currentRow, 'source' => $full, 'first_name' => $parts['first_name'], 'last_name' => $parts['last_name'],
+            'second_last_name' => $parts['second_last_name'], 'confidence' => $parts['confidence'], 'note' => $parts['note']];
+        if ($parts['confidence'] === 'low') { // 'manual' (corregida por el usuario) no es error y sigue visible en la revisión
+            $errors['full_name'] = 'No se pudo separar con seguridad «'.$full.'» ('.($parts['note'] ?? 'ambiguo').'). Corríjalo en la tabla de revisión.';
+        }
     }
 
     public function findExisting(ImportContext $ctx, array $data): ?Model

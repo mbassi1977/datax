@@ -251,4 +251,63 @@ class ImportTest extends TestCase
         $this->assertCount(0, Storage::disk('local')->allFiles());
         $this->runImport($up->json('id'), ['mode' => 'simulate', 'mapping' => $up->json('suggested_mapping')])->assertStatus(422);
     }
+
+    public function test_separate_paterno_and_materno_columns_map_directly(): void
+    {
+        $this->actingAs($this->user(), 'sanctum');
+        $up = $this->upload('people', $this->csv("RUT;Nombres;Apellido paterno;Apellido materno\n12.345.678-5;Ana María;Pérez;Soto\n"))->assertCreated();
+        $m = $up->json('suggested_mapping');
+        $this->assertSame([1, 2, 3, null], [$m['first_name'], $m['last_name'], $m['second_last_name'], $m['full_name']]);
+        $this->runImport($up->json('id'), ['mode' => 'commit', 'mapping' => $m])->assertOk();
+        $p = Person::first();
+        $this->assertSame(['Ana María', 'Pérez', 'Soto'], [$p->first_name, $p->last_name, $p->second_last_name]);
+    }
+
+    public function test_full_name_is_split_flags_doubtful_rows_and_accepts_manual_corrections(): void
+    {
+        $this->actingAs($this->user(), 'sanctum');
+        $csv = "RUT;Nombre completo\n"
+            ."12.345.678-5;Pérez Soto, Ana María\n"              // coma: alta
+            ."11.111.111-1;JUAN CARLOS DE LA FUENTE MUÑOZ\n"      // mayúsculas y apellido compuesto: alta
+            ."13.131.313-6;Ana Quilodrán Huenchumil\n"            // apellidos desconocidos: media (se carga y se avisa)
+            ."14.141.414-3;Zxqwv Plmko Rtyu Asdf\n";              // sin evidencia: baja (error hasta corregir)
+        $up = $this->upload('people', $this->csv($csv))->assertCreated();
+        $map = $up->json('suggested_mapping');
+        $this->assertSame(1, $map['full_name']);
+        $this->assertNull($map['first_name']);                       // no hace falta columna de nombres si hay nombre completo
+
+        $sim = $this->runImport($up->json('id'), ['mode' => 'simulate', 'mapping' => $map])->assertOk();
+        $this->assertSame([3, 1], [$sim->json('created_count'), $sim->json('error_count')]);
+        $warnings = collect($sim->json('warnings'))->keyBy('row');
+        $this->assertSame(['medium', 'low'], [$warnings[4]['confidence'], $warnings[5]['confidence']]);
+        $this->assertArrayNotHasKey(2, $warnings->all());            // las de confianza alta no molestan
+        $this->assertSame('Ana Quilodrán Huenchumil', $warnings[4]['source']);
+        $this->assertSame(0, Person::count());
+
+        // el usuario corrige la fila dudosa (5) y se carga todo
+        $done = $this->runImport($up->json('id'), ['mode' => 'commit', 'mapping' => $map,
+            'name_overrides' => ['5' => ['first_name' => 'Zoila', 'last_name' => 'Plomo', 'second_last_name' => 'Ruiz']]])->assertOk();
+        $this->assertSame([4, 0], [$done->json('created_count'), $done->json('error_count')]);
+
+        $by = fn (string $rut) => Person::where('rut', $rut)->first();
+        $this->assertSame(['Ana María', 'Pérez', 'Soto'], [$by('12.345.678-5')->first_name, $by('12.345.678-5')->last_name, $by('12.345.678-5')->second_last_name]);
+        $this->assertSame(['Juan Carlos', 'De la Fuente', 'Muñoz'], [$by('11.111.111-1')->first_name, $by('11.111.111-1')->last_name, $by('11.111.111-1')->second_last_name]);
+        $this->assertSame(['Zoila', 'Plomo', 'Ruiz'], [$by('14.141.414-3')->first_name, $by('14.141.414-3')->last_name, $by('14.141.414-3')->second_last_name]);
+    }
+
+    public function test_name_format_can_be_forced_and_explicit_columns_win_over_the_split(): void
+    {
+        $this->actingAs($this->user(), 'sanctum');
+        $up = $this->upload('people', $this->csv("RUT;Nombre completo\n12.345.678-5;Soto Pérez Ana\n"))->assertCreated();
+        $this->runImport($up->json('id'), ['mode' => 'commit', 'mapping' => $up->json('suggested_mapping'), 'name_format' => 'surnames_first'])->assertOk();
+        $p = Person::first();
+        $this->assertSame(['Ana', 'Soto', 'Pérez'], [$p->first_name, $p->last_name, $p->second_last_name]);
+
+        $up = $this->upload('people', $this->csv("RUT;Nombre completo;Apellido paterno\n11.111.111-1;Luis Gómez Rojas;Gómez-Rojas\n"))->assertCreated();
+        $this->runImport($up->json('id'), ['mode' => 'commit', 'mapping' => $up->json('suggested_mapping')])->assertOk();
+        $q = Person::where('rut', '11.111.111-1')->first();
+        $this->assertSame('Gómez-Rojas', $q->last_name);             // la columna explícita manda
+        $this->assertSame('Luis', $q->first_name);
+        $this->runImport($up->json('id'), ['mode' => 'simulate', 'mapping' => $up->json('suggested_mapping'), 'name_format' => 'inventado'])->assertStatus(422);
+    }
 }

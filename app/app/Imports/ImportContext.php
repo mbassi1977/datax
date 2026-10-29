@@ -9,6 +9,9 @@ use Illuminate\Support\Facades\DB;
 /** Datos compartidos durante una importación: usuario, alcance y organizaciones del tenant. */
 class ImportContext
 {
+    public ?int $currentRow = null;
+    /** @var array<int, array> avisos de revisión (p. ej. separación de nombres dudosa) */
+    public array $warnings = [];
     private array $allowed = [];
     private ?array $orgs = null;
 

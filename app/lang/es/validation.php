@@ -32,6 +32,6 @@ return [
         'cost_center_id' => 'centro de costo', 'area_id' => 'área', 'parent_id' => 'área superior',
         'branch_id' => 'sucursal', 'manager_id' => 'responsable', 'supervisor_id' => 'supervisor',
         'person_id' => 'persona', 'status' => 'estado', 'roles' => 'roles', 'profile' => 'perfil',
-        'scope_type' => 'tipo de alcance', 'scope_id' => 'alcance', 'valid_until' => 'vigencia', 'birth_date' => 'fecha de nacimiento',
+        'scope_type' => 'tipo de alcance', 'name_format' => 'formato de nombre', 'second_last_name' => 'apellido materno', 'scope_id' => 'alcance', 'valid_until' => 'vigencia', 'birth_date' => 'fecha de nacimiento',
     ],
 ];

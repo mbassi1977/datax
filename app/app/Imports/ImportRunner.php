@@ -53,6 +53,7 @@ class ImportRunner
             throw new RuntimeException('El archivo ya no está disponible. Súbalo nuevamente.');
         }
 
+        $ctx->warnings = [];
         $stats = ['total' => 0, 'created' => 0, 'updated' => 0, 'skipped' => 0, 'error_rows' => 0, 'errors' => []];
         $seen = [];
         $headerSeen = false;
@@ -79,6 +80,7 @@ class ImportRunner
                 }
             }
 
+            $ctx->currentRow = $n;
             [$data, $errors] = $target->normalize($raw, $ctx);
             $message = null;
             $existing = null;
@@ -118,6 +120,8 @@ class ImportRunner
             }
         }
 
+        $stats['warnings'] = array_slice($ctx->warnings, 0, self::MAX_ERRORS);
+
         return $stats;
     }
 
@@ -126,7 +130,7 @@ class ImportRunner
         $job->update([
             'status' => $status, 'total_rows' => $s['total'], 'created_count' => $s['created'], 'updated_count' => $s['updated'],
             'skipped_count' => $s['skipped'], 'error_count' => $s['error_rows'], 'errors' => $s['errors'],
-            'mapping' => $mapping, 'options' => $options, 'finished_at' => in_array($status, ['completed', 'rejected'], true) ? now() : null,
+            'mapping' => $mapping, 'options' => $options, 'warnings' => $s['warnings'] ?? [], 'finished_at' => in_array($status, ['completed', 'rejected'], true) ? now() : null,
         ]);
 
         return $job;

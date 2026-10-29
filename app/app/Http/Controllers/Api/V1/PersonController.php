@@ -8,7 +8,7 @@ class PersonController extends ScopedResourceController
 {
     protected function model(): string { return Person::class; }
     protected function prefix(): string { return 'personas'; }
-    protected function searchable(): array { return ['first_name', 'last_name', 'rut', 'email']; }
+    protected function searchable(): array { return ['first_name', 'last_name', 'second_last_name', 'rut', 'email']; }
     protected function orgRequired(): bool { return false; } // una persona puede existir sin empresa
 
     protected function rules(string $tenantId, ?string $orgId, ?string $ignoreId): array
@@ -18,6 +18,7 @@ class PersonController extends ScopedResourceController
         return [
             'first_name' => [$r, 'string', 'max:255'],
             'last_name' => ['nullable', 'string', 'max:255'],
+            'second_last_name' => ['nullable', 'string', 'max:255'],
             'rut' => ['nullable', 'string', 'max:20', $this->uniqueInTenant('master.people', 'rut', $tenantId, $ignoreId)],
             'email' => ['nullable', 'email'],
             'phone' => ['nullable', 'string', 'max:30'],

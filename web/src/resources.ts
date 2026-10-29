@@ -53,17 +53,17 @@ export const resources: Resource[] = [
   {
     id: 'people', title: 'Personas', path: 'people', perm: 'personas', group: 'Personas y proyectos',
     columns: [
-      { key: 'first_name', label: 'Nombre', render: (r) => `${r.first_name} ${r.last_name ?? ''}`.trim() }, { key: 'rut', label: 'RUT' },
+      { key: 'first_name', label: 'Nombre', render: (r) => [r.first_name, r.last_name, r.second_last_name].filter(Boolean).join(' ') }, { key: 'rut', label: 'RUT' },
       { key: 'job_title', label: 'Cargo' }, { key: 'roles', label: 'Roles', render: (r) => (r.roles ?? []).join(', ') }, { key: 'organization_id', label: 'Organización', render: orgName },
     ],
     fields: [
       { ...orgOptional, help: 'Opcional: una persona puede existir sin empresa (requiere alcance global).' },
-      { key: 'first_name', label: 'Nombres', required: true }, { key: 'last_name', label: 'Apellidos' }, { key: 'rut', label: 'RUT' },
+      { key: 'first_name', label: 'Nombres', required: true }, { key: 'last_name', label: 'Apellido paterno' }, { key: 'second_last_name', label: 'Apellido materno' }, { key: 'rut', label: 'RUT' },
       { key: 'email', label: 'Correo', type: 'email' }, { key: 'phone', label: 'Teléfono' }, { key: 'birth_date', label: 'Fecha de nacimiento', type: 'date' },
       { key: 'job_title', label: 'Cargo' }, { key: 'nationality', label: 'Nacionalidad' },
       { key: 'roles', label: 'Roles', type: 'tags', options: roles.map((r) => [r, r]) },
       { key: 'area_id', label: 'Área', type: 'ref', ref: { path: 'areas', label: (a) => a.name } },
-      { key: 'supervisor_id', label: 'Supervisor', type: 'ref', ref: { path: 'people', label: (p) => `${p.first_name} ${p.last_name ?? ''}` } },
+      { key: 'supervisor_id', label: 'Supervisor', type: 'ref', ref: { path: 'people', label: (p) => [p.first_name, p.last_name, p.second_last_name].filter(Boolean).join(' ') } },
       status,
     ],
   },
@@ -73,7 +73,7 @@ export const resources: Resource[] = [
     fields: [
       org, { key: 'name', label: 'Nombre', required: true }, { key: 'code', label: 'Código' }, { key: 'description', label: 'Descripción', type: 'textarea' },
       { key: 'cost_center_id', label: 'Centro de costo', type: 'ref', ref: { path: 'cost-centers', label: (c) => `${c.code} · ${c.name}` } },
-      { key: 'manager_id', label: 'Responsable', type: 'ref', ref: { path: 'people', label: (p) => `${p.first_name} ${p.last_name ?? ''}` } },
+      { key: 'manager_id', label: 'Responsable', type: 'ref', ref: { path: 'people', label: (p) => [p.first_name, p.last_name, p.second_last_name].filter(Boolean).join(' ') } },
       { key: 'starts_on', label: 'Inicio', type: 'date' }, { key: 'ends_on', label: 'Término', type: 'date' },
       { key: 'status', label: 'Estado', type: 'select', options: [['planned', 'Planificado'], ['active', 'Activo'], ['paused', 'Pausado'], ['closed', 'Cerrado']] },
     ],

@@ -92,3 +92,7 @@ td.wrap { white-space: normal; min-width: 260px; }
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .6rem; margin: .6rem 0 1rem; }
 .stat { border: 1px solid var(--border); border-radius: 8px; padding: .6rem .8rem; display: flex; flex-direction: column; } .stat strong { font-size: 1.5rem; }
 .stat span { color: var(--muted); font-size: .82rem; } .stat.ok strong { color: var(--ok); } .stat.bad strong { color: var(--danger); }
+
+.badge.medium { background: color-mix(in srgb, #d98e04 24%, transparent); color: #a86a00; }
+@media (prefers-color-scheme: dark) { .badge.medium { color: #ffc861; } }
+.review td input { min-width: 130px; padding: .3rem .45rem; }

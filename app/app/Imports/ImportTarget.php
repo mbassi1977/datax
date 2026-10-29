@@ -17,6 +17,21 @@ abstract class ImportTarget
     /** @return array<string, array{label:string, required?:bool, synonyms?:string[], example?:string}> */
     abstract public function fields(): array;
 
+    /** Campos que deben estar relacionados con una columna (algunos pueden ser opcionales según otro campo). */
+    public function requiredFields(array $mapping): array
+    {
+        $out = [];
+        foreach ($this->fields() as $key => $def) {
+            $unless = $def['required_unless'] ?? null;
+            $satisfied = ($mapping[$key] ?? null) !== null || ($unless && ($mapping[$unless] ?? null) !== null);
+            if (($def['required'] ?? false) && ! $satisfied) {
+                $out[$key] = $def['label'];
+            }
+        }
+
+        return $out;
+    }
+
     /**
      * Normaliza y valida una fila ya mapeada (campo => texto crudo).
      *

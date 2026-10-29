@@ -41,6 +41,11 @@ Por API: `GET imports/targets` → `POST imports` (multipart `target`, `file`, `
 → `POST imports/{id}/run` (`mode: simulate|commit`, `mapping` campo→índice de columna, `update_existing`, `on_error: skip|abort`,
 `organization_id?`, `save_template_as?`) → `GET imports[/{id}]`. Destinos: `organizations` y `people`; los registros existentes se
 detectan por RUT. Respeta permisos y alcance: cada fila se valida contra lo que el usuario puede crear o editar.
+**Nombres:** Personas guarda `first_name` (nombres), `last_name` (apellido paterno) y `second_last_name` (materno). Si el archivo trae
+una sola columna de nombre completo, se separa con `NameSplitter` (coma, orden detectado con listas de nombres y apellidos
+frecuentes, partículas como «De la»). Cada fila queda con confianza alta (silenciosa), media (se carga y se avisa) o baja
+(error hasta corregirla en la tabla de revisión; la corrección viaja en `name_overrides` por número de fila). `name_format`:
+`auto | names_first | surnames_first | comma`.
 Los archivos subidos se borran al terminar; `php artisan imports:prune` (diario) elimina los abandonados. Requiere `php-zip` para `.xlsx`.
 
 Asignar perfil: `{profile, scope_type, scope_id, valid_from?, valid_until?}`. Solo se puede asignar un perfil cuyos permisos

@@ -15,6 +15,6 @@ class ImportJob extends Model
 
     protected function casts(): array
     {
-        return ['errors' => 'array', 'mapping' => 'array', 'options' => 'array', 'finished_at' => 'datetime'];
+        return ['errors' => 'array', 'warnings' => 'array', 'mapping' => 'array', 'options' => 'array', 'finished_at' => 'datetime'];
     }
 }

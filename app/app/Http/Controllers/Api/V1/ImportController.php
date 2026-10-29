@@ -8,6 +8,7 @@ use App\Imports\ImportContext;
 use App\Imports\ImportRegistry;
 use App\Imports\ImportRunner;
 use App\Imports\ImportTarget;
+use App\Imports\NameSplitter;
 use App\Imports\SpreadsheetReader;
 use App\Models\ImportJob;
 use App\Models\ImportTemplate;
@@ -16,6 +17,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -30,7 +32,7 @@ class ImportController extends Controller
         $out = [];
         foreach (ImportRegistry::all() as $t) {
             if ($this->access->can($request->user(), $t->permission().'.crear', $request->header('X-Profile'))) {
-                $out[] = ['key' => $t->key(), 'label' => $t->label(), 'fields' => collect($t->fields())->map(fn ($f, $k) => ['key' => $k, 'label' => $f['label'], 'required' => $f['required'] ?? false])->values()];
+                $out[] = ['key' => $t->key(), 'label' => $t->label(), 'fields' => collect($t->fields())->map(fn ($f, $k) => ['key' => $k, 'label' => $f['label'], 'required' => $f['required'] ?? false, 'required_unless' => $f['required_unless'] ?? null])->values()];
             }
         }
 
@@ -118,6 +120,12 @@ class ImportController extends Controller
             'on_error' => ['in:skip,abort'],
             'organization_id' => ['nullable', 'uuid'],
             'save_template_as' => ['nullable', 'string', 'max:100'],
+            'name_format' => ['nullable', Rule::in(NameSplitter::FORMATS)],
+            'name_overrides' => ['nullable', 'array', 'max:5000'],
+            'name_overrides.*' => ['array'],
+            'name_overrides.*.first_name' => ['nullable', 'string', 'max:255'],
+            'name_overrides.*.last_name' => ['nullable', 'string', 'max:255'],
+            'name_overrides.*.second_last_name' => ['nullable', 'string', 'max:255'],
         ]);
 
         $job = ImportJob::where('tenant_id', $request->user()->tenant_id)->where('user_id', $request->user()->id)->findOrFail($id);
@@ -125,14 +133,15 @@ class ImportController extends Controller
         $t = $this->target($request, $job->target);
 
         $mapping = [];
-        foreach ($t->fields() as $key => $def) {
+        foreach ($t->fields() as $key => $_) {
             $mapping[$key] = isset($data['mapping'][$key]) ? (int) $data['mapping'][$key] : null;
-            if (($def['required'] ?? false) && $mapping[$key] === null) {
-                abort(422, "Debe indicar qué columna corresponde a «{$def['label']}».");
-            }
+        }
+        if ($missing = $t->requiredFields($mapping)) {
+            abort(422, 'Debe indicar qué columna corresponde a: '.implode(', ', $missing).'.');
         }
 
-        $options = ['update_existing' => (bool) ($data['update_existing'] ?? false), 'on_error' => $data['on_error'] ?? 'skip', 'organization_id' => $data['organization_id'] ?? null];
+        $options = ['update_existing' => (bool) ($data['update_existing'] ?? false), 'on_error' => $data['on_error'] ?? 'skip', 'organization_id' => $data['organization_id'] ?? null,
+            'name_format' => $data['name_format'] ?? 'auto', 'name_overrides' => $data['name_overrides'] ?? []];
         if ($options['organization_id'] && ! $this->access->canOnOrganization($request->user(), $t->permission().'.crear', $options['organization_id'], $request->header('X-Profile'))) {
             abort(403, 'La organización indicada está fuera de su alcance.');
         }
@@ -152,7 +161,7 @@ class ImportController extends Controller
         if ($data['mode'] === 'commit' && $job->status === 'completed' && ! empty($data['save_template_as'])) {
             ImportTemplate::updateOrCreate(
                 ['tenant_id' => $job->tenant_id, 'target' => $t->key(), 'name' => $data['save_template_as']],
-                ['mapping' => $this->namesFor($mapping, $headers), 'options' => $options, 'created_by' => $request->user()->id],
+                ['mapping' => $this->namesFor($mapping, $headers), 'options' => array_diff_key($options, ['name_overrides' => 1]), 'created_by' => $request->user()->id],
             );
         }
 
@@ -190,28 +199,43 @@ class ImportController extends Controller
         return $t;
     }
 
-    /** Sugiere columna por campo: coincidencia exacta con nombre/etiqueta/sinónimos, luego por contenido. */
+    /**
+     * Sugiere una columna por campo en dos pasadas: primero coincidencias exactas (clave, etiqueta o sinónimo) y luego,
+     * para lo que quedó sin asignar, columnas que contienen un sinónimo como palabra completa.
+     */
     private function suggest(ImportTarget $t, array $headers): array
     {
         $norm = array_map(fn ($h) => Cast::norm($h), $headers);
         $used = [];
-        $out = [];
+        $out = array_fill_keys(array_keys($t->fields()), null);
+
         foreach ($t->fields() as $key => $def) {
             $names = array_map([Cast::class, 'norm'], array_merge([$key, $def['label']], $def['synonyms'] ?? []));
-            $found = null;
             foreach ($norm as $i => $h) {
-                if (! isset($used[$i]) && $h !== '' && in_array($h, $names, true)) { $found = $i; break; }
+                if (! isset($used[$i]) && $h !== '' && in_array($h, $names, true)) {
+                    $out[$key] = $i;
+                    $used[$i] = true;
+                    break;
+                }
             }
-            if ($found === null) {
-                foreach ($norm as $i => $h) {
-                    if (isset($used[$i]) || $h === '') { continue; }
-                    foreach ($names as $n) {
-                        if (strlen($n) >= 4 && (str_contains($h, $n) || str_contains($n, $h) && strlen($h) >= 4)) { $found = $i; break 2; }
+        }
+        foreach ($t->fields() as $key => $def) {
+            if ($out[$key] !== null) {
+                continue;
+            }
+            $names = array_map([Cast::class, 'norm'], array_merge([$key], $def['synonyms'] ?? []));
+            foreach ($norm as $i => $h) {
+                if (isset($used[$i]) || $h === '') {
+                    continue;
+                }
+                foreach ($names as $n) {
+                    if (strlen($n) >= 4 && str_contains(" {$h} ", " {$n} ")) {
+                        $out[$key] = $i;
+                        $used[$i] = true;
+                        break 2;
                     }
                 }
             }
-            $found !== null && $used[$found] = true;
-            $out[$key] = $found;
         }
 
         return $out;

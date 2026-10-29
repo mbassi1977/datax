@@ -2,13 +2,16 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from 'react'
 import { api, ApiError, download, Me, upload } from './api';
 import { can, Modal } from './ResourcePage';
 
-type Target = { key: string; label: string; fields: { key: string; label: string; required: boolean }[] };
+type Field = { key: string; label: string; required: boolean; required_unless: string | null };
+type Target = { key: string; label: string; fields: Field[] };
+type Warn = { row: number; source: string; first_name: string | null; last_name: string | null; second_last_name: string | null; confidence: 'medium' | 'low' | 'manual'; note: string | null };
+type Parts = { first_name: string; last_name: string; second_last_name: string };
 type Template = { id: string; name: string };
 type Upload = { id: string; headers: string[]; preview: string[][]; total_rows: number; suggested_mapping: Record<string, number | null>; templates: Template[] };
 type Err = { row: number | null; field: string | null; message: string };
 type Job = {
   id: string; target: string; original_name: string; status: string; total_rows: number;
-  created_count: number; updated_count: number; skipped_count: number; error_count: number; errors?: Err[]; created_at: string;
+  created_count: number; updated_count: number; skipped_count: number; error_count: number; errors?: Err[]; warnings?: Warn[]; created_at: string;
 };
 
 const statusLabel: Record<string, string> = { uploaded: 'Subido', simulated: 'Simulado', completed: 'Completada', rejected: 'Rechazada', failed: 'Fallida' };
@@ -121,20 +124,27 @@ function Wizard({ up, orgs, onClose }: { up: Upload & { target: Target; file: st
   const [org, setOrg] = useState('');
   const [saveAs, setSaveAs] = useState('');
   const [job, setJob] = useState<Job | null>(null);
+  const [nameFormat, setNameFormat] = useState('auto');
+  const [overrides, setOverrides] = useState<Record<number, Parts>>({});
+  const [stale, setStale] = useState(false); // hay correcciones sin simular
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const done = job?.status === 'completed' || job?.status === 'rejected';
   const isPeople = up.target.key === 'people';
 
   const setMap = (field: string, v: string) => { setMapping((m) => ({ ...m, [field]: v === '' ? null : Number(v) })); setJob(null); };
-  const missing = up.target.fields.filter((f) => f.required && mapping[f.key] == null);
+  const missing = up.target.fields.filter((f) => f.required && mapping[f.key] == null && !(f.required_unless && mapping[f.required_unless] != null));
+  const isRequired = (f: Field) => f.required && !(f.required_unless && mapping[f.required_unless] != null);
+  const hasFullName = mapping.full_name != null;
 
   const run = async (mode: 'simulate' | 'commit') => {
     setBusy(true); setError('');
     try {
       setJob(await api<Job>('POST', `imports/${up.id}/run`, {
         mode, mapping, update_existing: updateExisting, on_error: onError, organization_id: org || null, save_template_as: mode === 'commit' && saveAs ? saveAs : null,
+        name_format: nameFormat, name_overrides: overrides,
       }));
+      setStale(false);
     } catch (e) {
       const ae = e as ApiError;
       setError(Object.values(ae.errors).flat().join(' ') || ae.message);
@@ -155,7 +165,7 @@ function Wizard({ up, orgs, onClose }: { up: Upload & { target: Target; file: st
           <tbody>
             {up.target.fields.map((f) => (
               <tr key={f.key}>
-                <td>{f.label}{f.required && ' *'}</td>
+                <td>{f.label}{isRequired(f) && ' *'}</td>
                 <td>
                   <select value={mapping[f.key] ?? ''} onChange={(e) => setMap(f.key, e.target.value)} disabled={done}>
                     <option value="">— no importar —</option>
@@ -175,6 +185,16 @@ function Wizard({ up, orgs, onClose }: { up: Upload & { target: Target; file: st
           <label><span>Organización por defecto (para filas sin empresa)</span>
             <select value={org} onChange={(e) => { setOrg(e.target.value); setJob(null); }} disabled={done}>
               <option value="">— ninguna —</option>{orgs.map((o) => <option key={o.id} value={o.id}>{o.legal_name}</option>)}
+            </select>
+          </label>
+        )}
+        {hasFullName && (
+          <label><span>Orden del nombre completo</span>
+            <select value={nameFormat} onChange={(e) => { setNameFormat(e.target.value); setJob(null); }} disabled={done}>
+              <option value="auto">Detectar automáticamente</option>
+              <option value="names_first">Nombres y luego apellidos (Ana María Pérez Soto)</option>
+              <option value="surnames_first">Apellidos y luego nombres (Pérez Soto Ana María)</option>
+              <option value="comma">Con coma (Pérez Soto, Ana María)</option>
             </select>
           </label>
         )}
@@ -198,15 +218,20 @@ function Wizard({ up, orgs, onClose }: { up: Upload & { target: Target; file: st
       {error && <p className="error">{error}</p>}
       {missing.length > 0 && <p className="error">Falta relacionar: {missing.map((f) => f.label).join(', ')}.</p>}
 
-      {job && <><h3>{done ? 'Resultado' : 'Resultado de la simulación'}</h3><Summary job={job} /><ErrorTable errors={job.errors ?? []} target={up.target} /></>}
+      {job && <><h3>{done ? 'Resultado' : 'Resultado de la simulación'}</h3><Summary job={job} />
+        {!done && (job.warnings?.length ?? 0) > 0 && (
+          <NameReview warnings={job.warnings!} overrides={overrides} onChange={(row, parts) => { setOverrides((o) => ({ ...o, [row]: parts })); setStale(true); }} />
+        )}
+        <ErrorTable errors={job.errors ?? []} target={up.target} /></>}
 
       {!done && (
         <div className="buttons">
           <button disabled={busy || missing.length > 0} onClick={() => run('simulate')}>{busy ? 'Procesando…' : 'Simular (no guarda nada)'}</button>
-          <button className="primary" disabled={busy || missing.length > 0 || !job || job.status !== 'simulated' || (onError === 'abort' && job.error_count > 0) || (job.created_count + job.updated_count === 0)}
+          <button className="primary" disabled={busy || stale || missing.length > 0 || !job || job.status !== 'simulated' || (onError === 'abort' && job.error_count > 0) || (job.created_count + job.updated_count === 0)}
             onClick={() => run('commit')}>Importar</button>
         </div>
       )}
+      {stale && <p className="muted">Hay correcciones de nombres sin aplicar: pulse «Simular» de nuevo para revisarlas antes de importar.</p>}
       {!done && !job && <small className="muted">Primero simule para revisar errores; después se habilita «Importar».</small>}
       {job?.status === 'completed' && <p className="ok">Importación completada. {job.created_count} nuevos, {job.updated_count} actualizados.</p>}
       {job?.status === 'rejected' && <p className="error">No se importó nada porque hay filas con error.</p>}
@@ -229,6 +254,37 @@ function ErrorTable({ errors, target }: { errors: Err[]; target?: Target }) {
         <tbody>{errors.map((e, i) => <tr key={i}><td>{e.row ?? '—'}</td><td>{label(e.field)}</td><td className="wrap">{e.message}</td></tr>)}</tbody>
       </table>
       {errors.length >= 500 && <small className="muted">Se muestran los primeros 500 problemas.</small>}
+    </div>
+  );
+}
+
+/** Tabla de revisión de nombres separados con baja/media confianza; permite corregirlos antes de importar. */
+function NameReview({ warnings, overrides, onChange }: { warnings: Warn[]; overrides: Record<number, Parts>; onChange: (row: number, p: Parts) => void }) {
+  const val = (w: Warn): Parts => overrides[w.row] ?? { first_name: w.first_name ?? '', last_name: w.last_name ?? '', second_last_name: w.second_last_name ?? '' };
+  const input = (w: Warn, k: keyof Parts, label: string) => (
+    <input aria-label={`${label} (fila ${w.row})`} value={val(w)[k]} onChange={(e) => onChange(w.row, { ...val(w), [k]: e.target.value })} />
+  );
+  return (
+    <div className="review">
+      <h3>Revise la separación de nombres</h3>
+      <p className="muted">
+        <span className="badge failed">Baja</span> no se importa hasta que la corrija. <span className="badge medium">Media</span> se importa tal como aparece aquí; <span className="badge completed">Corregida</span> usa su corrección;
+        edite lo que esté mal y pulse «Simular» de nuevo. Las filas de confianza alta no se muestran.
+      </p>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Fila</th><th>Como venía</th><th>Nombres</th><th>Ap. paterno</th><th>Ap. materno</th><th>Confianza</th></tr></thead>
+          <tbody>
+            {warnings.map((w) => (
+              <tr key={w.row}>
+                <td>{w.row}</td><td>{w.source}</td>
+                <td>{input(w, 'first_name', 'Nombres')}</td><td>{input(w, 'last_name', 'Apellido paterno')}</td><td>{input(w, 'second_last_name', 'Apellido materno')}</td>
+                <td><span className={`badge ${w.confidence === 'low' ? 'failed' : w.confidence === 'manual' ? 'completed' : 'medium'}`}>{w.confidence === 'low' ? 'Baja' : w.confidence === 'manual' ? 'Corregida' : 'Media'}</span>{w.note && <small className="muted"> {w.note}</small>}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
