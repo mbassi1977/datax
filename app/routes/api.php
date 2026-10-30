@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V1\AvatarController;
 use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\ProfileAdminController;
+use App\Http\Controllers\Api\V1\SettingsController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\HoldingController;
@@ -24,6 +25,7 @@ Route::prefix('v1')->group(function () {
 
     // Imágenes de avatar: URL firmada (un <img> no puede enviar el token)
     Route::get('media/avatars/{avatar}', [MediaController::class, 'avatar'])->name('media.avatar')->middleware('signed:relative');
+    Route::get('media/logos/{setting}', [MediaController::class, 'logo'])->name('media.logo')->middleware('signed:relative');
     Route::get('media/users/{user}/avatar', [MediaController::class, 'userAvatar'])->name('media.user-avatar')->middleware('signed:relative');
 
     Route::middleware(['auth:sanctum', 'active'])->group(function () {
@@ -42,6 +44,12 @@ Route::prefix('v1')->group(function () {
         Route::put('me/avatar', [AvatarController::class, 'select']);
         Route::post('me/avatar', [AvatarController::class, 'upload']);
         Route::delete('me/avatar', [AvatarController::class, 'remove']);
+
+        // Configuración por tenant / organización
+        Route::get('settings', [SettingsController::class, 'show'])->middleware('permission:configuracion.ver');
+        Route::put('settings', [SettingsController::class, 'update'])->middleware('permission:configuracion.editar');
+        Route::post('settings/logo', [SettingsController::class, 'uploadLogo'])->middleware('permission:configuracion.editar');
+        Route::delete('settings/logo', [SettingsController::class, 'deleteLogo'])->middleware('permission:configuracion.editar');
 
         // Holdings
         Route::get('holdings', [HoldingController::class, 'index'])->middleware('permission:holdings.ver');

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, download } from './api';
 import { Modal } from './ResourcePage';
+import { formatDateTime, getLocale } from './fmt';
 
 type Row = { id: string; created_at: string; user_id: string | null; user_email: string | null; action: string; entity_type: string | null; entity_id: string | null; ip_address: string | null };
 type Detail = Row & { old_values: Record<string, unknown> | null; new_values: Record<string, unknown> | null; user_agent: string | null };
@@ -18,7 +19,7 @@ const entityLabels: Record<string, string> = {
 };
 const action = (a: string) => actionLabels[a] ?? a;
 const entity = (t: string | null) => (t ? entityLabels[t.split('\\').pop()!] ?? t.split('\\').pop()! : '—');
-const when = (s: string) => s.slice(0, 19).replace('T', ' ');
+const when = (s: string) => formatDateTime(s);
 
 export function AuditPage() {
   const [page, setPage] = useState<Page | null>(null);
@@ -47,7 +48,7 @@ export function AuditPage() {
   return (
     <section>
       <header className="bar"><h1>Auditoría</h1><button onClick={exportCsv} disabled={!page || page.total === 0}>Exportar CSV</button></header>
-      <p className="muted">Registro de quién hizo qué, cuándo y desde dónde. Las fechas están en hora UTC. Cada exportación también queda registrada.</p>
+      <p className="muted">Registro de quién hizo qué, cuándo y desde dónde. Las fechas se muestran en la zona horaria {getLocale().timezone}. Cada exportación también queda registrada.</p>
       <form className="card pad filters" onSubmit={apply}>
         <label><span>Buscar</span><input value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} placeholder="Usuario, acción, entidad o ID" /></label>
         <label><span>Acción</span>
@@ -101,7 +102,7 @@ function DetailModal({ d, onClose }: { d: Detail; onClose: () => void }) {
   return (
     <Modal title={`${action(d.action)} · ${entity(d.entity_type)}`} onClose={onClose}>
       <dl className="facts">
-        <dt>Fecha (UTC)</dt><dd>{when(d.created_at)}</dd>
+        <dt>Fecha</dt><dd>{when(d.created_at)}</dd>
         <dt>Usuario</dt><dd>{d.user_email ?? '—'}</dd>
         <dt>IP</dt><dd>{d.ip_address ?? '—'}</dd>
         <dt>Navegador</dt><dd className="wrap">{d.user_agent ?? '—'}</dd>

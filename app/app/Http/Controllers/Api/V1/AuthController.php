@@ -52,7 +52,7 @@ class AuthController extends Controller
     {
         $data = $request->validate([
             'current_password' => ['required', 'string'],
-            'password' => ['required', 'confirmed', \Illuminate\Validation\Rules\Password::min(10)->letters()->numbers(), 'different:current_password'],
+            'password' => ['required', 'confirmed', app(\App\Support\Settings\SettingsService::class)->passwordRule($request->user()->tenant_id, $request->user()->organization_id), 'different:current_password'],
         ]);
         $user = $request->user();
 
@@ -61,7 +61,7 @@ class AuthController extends Controller
         }
 
         $user->update(['password' => $data['password']]);
-        $user->tokens()->where('id', '!=', $user->currentAccessToken()->id)->delete(); // cierra las demás sesiones
+        $user->tokens()->when($user->currentAccessToken(), fn ($q, $t) => $q->where('id', '!=', $t->id))->delete(); // cierra las demás sesiones
         AuditEvent::record('password_changed');
 
         return response()->json(['message' => 'Clave actualizada.']);
@@ -76,6 +76,7 @@ class AuthController extends Controller
             'email' => $user->email,
             'tenant_id' => $user->tenant_id,
             'avatar_url' => $user->avatar_url,
+            'settings' => app(\App\Support\Settings\SettingsService::class)->forClient($user->tenant_id, $user->organization_id),
             'is_superadmin' => $user->is_superadmin,
             'profiles' => DB::table('security.user_profiles as up')
                 ->join('security.profiles as p', 'p.id', '=', 'up.profile_id')

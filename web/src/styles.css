@@ -137,3 +137,16 @@ tr.inactive td { opacity: .5; } code { font-size: .85em; background: var(--bg); 
 .filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .7rem; align-items: end; margin-bottom: 1rem; } .filters .buttons { grid-column: 1 / -1; }
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1rem; margin: 0 0 1rem; } .facts dt { color: var(--muted); } .facts dd { margin: 0; }
 tr.diff td { background: color-mix(in srgb, #d98e04 12%, transparent); } td.wrap, dd.wrap { white-space: normal; word-break: break-word; max-width: 320px; }
+
+/* Configuración y marca */
+nav a.brand { display: flex; align-items: center; gap: .5rem; min-height: 40px; } nav a.brand .logo { max-height: 28px; max-width: 120px; object-fit: contain; }
+.shell.collapsed .brand span { display: none; } .shell.collapsed .brand { display: flex; }
+.scopebar { margin-bottom: 1rem; max-width: 460px; }
+.group-card { margin-bottom: 1rem; } .group-card h2 { margin-bottom: .6rem; }
+.setting { display: grid; grid-template-columns: minmax(180px, 1fr) 2fr; gap: .5rem 1.2rem; padding: .7rem 0; border-top: 1px solid var(--border); align-items: center; } .setting:first-of-type { border-top: 0; }
+.setting .head { display: flex; flex-direction: column; } .setting .ctl { display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; } .setting .ctl select, .setting .ctl input:not([type=checkbox]):not([type=color]) { max-width: 320px; }
+.colorrow { display: inline-flex; align-items: center; gap: .6rem; } .colorrow input[type=color] { width: 48px; height: 36px; padding: 2px; }
+.logo-preview { max-height: 56px; max-width: 220px; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; padding: .3rem; background: #fff; }
+.stickybar { position: sticky; bottom: 0; padding: .8rem 0; background: var(--bg); }
+@media (max-width: 760px) { .setting { grid-template-columns: 1fr; } }
+nav a.brand { overflow: hidden; } nav a.brand .logo { max-width: 88px; flex: none; } nav a.brand span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.05rem; }

@@ -1,6 +1,7 @@
 import { ChangeEvent, FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError, download, Me, upload } from './api';
 import { can, Modal } from './ResourcePage';
+import { formatDateTime } from './fmt';
 
 type Field = { key: string; label: string; required: boolean; required_unless: string | null };
 type Target = { key: string; label: string; fields: Field[] };
@@ -47,7 +48,7 @@ export function ImportsPage({ me }: { me: Me }) {
           <tbody>
             {history.map((j) => (
               <tr key={j.id}>
-                <td>{j.created_at.slice(0, 16).replace('T', ' ')}</td><td>{j.original_name}</td>
+                <td>{formatDateTime(j.created_at)}</td><td>{j.original_name}</td>
                 <td>{targets.find((t) => t.key === j.target)?.label ?? j.target}</td>
                 <td><span className={`badge ${j.status}`}>{statusLabel[j.status] ?? j.status}</span></td>
                 <td>{j.created_count}</td><td>{j.updated_count}</td><td>{j.skipped_count}</td><td>{j.error_count}</td>

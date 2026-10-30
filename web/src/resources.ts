@@ -1,3 +1,5 @@
+import { formatDateTime } from './fmt';
+
 // Definición declarativa de las pantallas de gestión.
 export type Field = {
   key: string; label: string;
@@ -88,7 +90,7 @@ export const resources: Resource[] = [
   },
   {
     id: 'users', title: 'Usuarios', path: 'users', perm: 'usuarios', group: 'Administración', profilesPanel: true,
-    columns: [{ key: 'email', label: 'Correo', avatar: true }, { key: 'organization_id', label: 'Organización', render: orgName }, { key: 'status', label: 'Estado' }, { key: 'last_login_at', label: 'Último acceso', render: (r) => r.last_login_at?.slice(0, 16).replace('T', ' ') ?? '—' }],
+    columns: [{ key: 'email', label: 'Correo', avatar: true }, { key: 'organization_id', label: 'Organización', render: orgName }, { key: 'status', label: 'Estado' }, { key: 'last_login_at', label: 'Último acceso', render: (r) => formatDateTime(r.last_login_at) }],
     fields: [
       { ...orgOptional, label: 'Organización principal' }, { key: 'email', label: 'Correo', type: 'email', required: true },
       { key: 'password', label: 'Contraseña', type: 'password', help: 'Mínimo 10 caracteres, con letras y números. En edición, déjela vacía para no cambiarla.' },
@@ -105,6 +107,7 @@ export const pages: NavItem[] = [
   { id: 'imports', title: 'Importaciones', perm: 'importaciones', group: 'Datos' },
   { id: 'catalogs', title: 'Catálogos', perm: 'catalogos', group: 'Datos' },
   { id: 'profiles', title: 'Perfiles', perm: 'perfiles', group: 'Administración' },
+  { id: 'settings', title: 'Configuración', perm: 'configuracion', group: 'Administración' },
   { id: 'audit', title: 'Auditoría', perm: 'auditoria', group: 'Administración' },
   { id: 'avatar-galleries', title: 'Galerías de avatares', perm: 'avatares', group: 'Administración' },
 ];

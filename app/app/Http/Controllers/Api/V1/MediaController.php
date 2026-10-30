@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Avatar;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
@@ -24,6 +25,14 @@ class MediaController extends Controller
         abort_unless($u->avatar_path, 404);
 
         return $this->file($u->avatar_path, 'image/webp');
+    }
+
+    public function logo(string $setting): Response
+    {
+        $s = Setting::where('key', 'brand.logo')->findOrFail($setting);
+        abort_unless(is_array($s->value) && isset($s->value['path']), 404);
+
+        return $this->file($s->value['path'], $s->value['mime'] ?? 'image/webp');
     }
 
     private function file(string $path, string $mime): Response

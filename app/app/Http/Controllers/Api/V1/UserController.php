@@ -5,7 +5,6 @@ namespace App\Http\Controllers\Api\V1;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rules\Password;
 
 class UserController extends ScopedResourceController
 {
@@ -18,7 +17,7 @@ class UserController extends ScopedResourceController
     {
         return [
             'email' => [$ignoreId ? 'sometimes' : 'required', 'email', $this->uniqueInTenant('security.users', 'email', $tenantId, $ignoreId)],
-            'password' => [$ignoreId ? 'sometimes' : 'required', Password::min(10)->letters()->numbers()],
+            'password' => [$ignoreId ? 'sometimes' : 'required', app(\App\Support\Settings\SettingsService::class)->passwordRule($tenantId, $orgId)],
             'person_id' => ['nullable', 'uuid', $this->existsInTenant('master.people', $tenantId)],
             'status' => ['sometimes', 'in:active,suspended,blocked'],
         ];

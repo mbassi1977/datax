@@ -35,6 +35,20 @@ y Laravel la sirve en `/`. Para modificarla: `cd web && npm install && npm run b
 | DELETE | `/api/v1/users/{id}/profiles/{asignación}` | `usuarios.editar` |
 | POST | `/api/v1/me/password` | token |
 
+### Configuración (tenant y empresa)
+`GET|PUT settings[?organization_id=]`, `POST|DELETE settings/logo` (`configuracion.*`). Valor efectivo = empresa → general → defecto.
+Parámetros: nombre visible, color principal, logo, zona horaria, formato de fecha, política de contraseñas (largo mínimo, símbolo,
+mayúsculas/minúsculas) y MFA obligatorio. `null` elimina el valor propio y hereda. Editar el nivel general exige alcance global; el de una
+empresa, alcance sobre ella. `/me` entrega los valores efectivos (`settings`) y la interfaz aplica color, nombre, logo y zona horaria.
+
+### Auditoría
+`GET audit-events[?q&action&entity_type&user_id&from&to]`, `GET audit-events/{id}` (valores antes/después), `GET audit-events/meta`,
+`GET audit-events/export` (CSV; la exportación queda registrada). Exige `auditoria.ver` con alcance global.
+
+### Holdings
+`GET|POST|PUT|DELETE holdings[/{id}]` (`holdings.*`; escribir exige alcance global). Un holding con organizaciones no se elimina.
+Es uno de los alcances posibles al asignar un perfil.
+
 ### Catálogos
 `GET catalogs` (tipos), `GET catalogs/{key}/items`, `GET catalogs/{key}/options` (opciones activas para formularios; cualquier usuario),
 `POST|PUT|DELETE catalogs[/{key}]` (constructor de catálogos del tenant) y `POST|PUT|DELETE catalogs/{key}/items[/{id}]` (`catalogos.*`,

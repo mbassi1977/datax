@@ -6,6 +6,8 @@ import { ImportsPage } from './ImportsPage';
 import { ProfilesPage } from './ProfilesPage';
 import { CatalogsPage } from './CatalogsPage';
 import { AuditPage } from './AuditPage';
+import { SettingsPage } from './SettingsPage';
+import { setLocale } from './fmt';
 import { AvatarGalleriesPage } from './AvatarGalleriesPage';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
@@ -95,6 +97,21 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
   }, [current?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const toggleGroup = (g: string) => setOpenGroups((o) => saveOpenGroups(o.includes(g) ? o.filter((x) => x !== g) : [...o, g]));
 
+  // Marca y formato regional de la empresa del usuario.
+  const brand = me.settings?.brand;
+  setLocale(me.settings?.locale);
+  useEffect(() => {
+    const root = document.documentElement.style;
+    if (brand?.primary_color) {
+      const n = parseInt(brand.primary_color.slice(1), 16);
+      const lum = (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) / 255;
+      root.setProperty('--primary', brand.primary_color);
+      root.setProperty('--primary-text', lum > 0.6 ? '#0b0f1a' : '#ffffff');
+    }
+    document.title = brand?.name || 'HRX';
+    return () => { root.removeProperty('--primary'); root.removeProperty('--primary-text'); document.title = 'HRX'; };
+  }, [brand?.primary_color, brand?.name]);
+
   const toggleCollapsed = () => {
     setCollapsed((c) => {
       try { localStorage.setItem('hrx_nav_collapsed', c ? '0' : '1'); } catch { /* sin storage */ }
@@ -125,7 +142,10 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
       {open && <div className="backdrop" onClick={() => setOpen(false)} />}
       <nav aria-label="Menú principal">
         <div className="nav-head">
-          <a href="#/" className="brand">HRX</a>
+          <a href="#/" className="brand" title={brand?.name || 'HRX'}>
+            {brand?.logo_url ? <img src={brand.logo_url} alt="" className="logo" /> : null}
+            <span>{brand?.name || (brand?.logo_url ? '' : 'HRX')}</span>
+          </a>
           <button className="toggle desktop-only" onClick={toggleCollapsed} aria-label={collapsed ? 'Expandir menú' : 'Colapsar menú'} title={collapsed ? 'Expandir menú' : 'Colapsar menú'}>
             <Icon name={collapsed ? 'expand' : 'collapse'} />
           </button>
@@ -164,6 +184,7 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
           : current?.id === 'imports' ? <ImportsPage me={me} />
           : current?.id === 'profiles' ? <ProfilesPage me={me} />
           : current?.id === 'catalogs' ? <CatalogsPage me={me} />
+          : current?.id === 'settings' ? <SettingsPage me={me} reload={reload} />
           : current?.id === 'audit' ? <AuditPage />
           : current?.id === 'avatar-galleries' ? <AvatarGalleriesPage me={me} />
           : <Home me={me} />}
