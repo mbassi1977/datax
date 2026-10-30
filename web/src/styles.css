@@ -132,3 +132,8 @@ fieldset { border: 1px solid var(--border); border-radius: 8px; padding: .7rem .
 .typelist button { display: flex; justify-content: space-between; border: 0; background: none; text-align: left; } .typelist button.on { background: var(--primary); color: var(--primary-text); } .typelist button.on .muted { color: inherit; opacity: .8; }
 tr.inactive td { opacity: .5; } code { font-size: .85em; background: var(--bg); padding: .1rem .35rem; border-radius: 4px; }
 @media (max-width: 760px) { .split { grid-template-columns: 1fr; } }
+
+/* Auditoría */
+.filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: .7rem; align-items: end; margin-bottom: 1rem; } .filters .buttons { grid-column: 1 / -1; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1rem; margin: 0 0 1rem; } .facts dt { color: var(--muted); } .facts dd { margin: 0; }
+tr.diff td { background: color-mix(in srgb, #d98e04 12%, transparent); } td.wrap, dd.wrap { white-space: normal; word-break: break-word; max-width: 320px; }

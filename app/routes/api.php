@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AreaController;
+use App\Http\Controllers\Api\V1\AuditController;
 use App\Http\Controllers\Api\V1\AvatarAdminController;
 use App\Http\Controllers\Api\V1\AvatarController;
 use App\Http\Controllers\Api\V1\CatalogController;
@@ -40,6 +41,12 @@ Route::prefix('v1')->group(function () {
         Route::put('me/avatar', [AvatarController::class, 'select']);
         Route::post('me/avatar', [AvatarController::class, 'upload']);
         Route::delete('me/avatar', [AvatarController::class, 'remove']);
+
+        // Bitácora de auditoría
+        Route::get('audit-events/meta', [AuditController::class, 'meta'])->middleware('permission:auditoria.ver');
+        Route::get('audit-events/export', [AuditController::class, 'export'])->middleware('permission:auditoria.ver');
+        Route::get('audit-events', [AuditController::class, 'index'])->middleware('permission:auditoria.ver');
+        Route::get('audit-events/{id}', [AuditController::class, 'show'])->middleware('permission:auditoria.ver');
 
         // Catálogos maestros y constructor de catálogos
         Route::get('catalogs/{key}/options', [CatalogController::class, 'options']);

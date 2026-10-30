@@ -5,6 +5,7 @@ import type { NavItem } from './resources';
 import { ImportsPage } from './ImportsPage';
 import { ProfilesPage } from './ProfilesPage';
 import { CatalogsPage } from './CatalogsPage';
+import { AuditPage } from './AuditPage';
 import { AvatarGalleriesPage } from './AvatarGalleriesPage';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
@@ -163,6 +164,7 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
           : current?.id === 'imports' ? <ImportsPage me={me} />
           : current?.id === 'profiles' ? <ProfilesPage me={me} />
           : current?.id === 'catalogs' ? <CatalogsPage me={me} />
+          : current?.id === 'audit' ? <AuditPage />
           : current?.id === 'avatar-galleries' ? <AvatarGalleriesPage me={me} />
           : <Home me={me} />}
       </main>

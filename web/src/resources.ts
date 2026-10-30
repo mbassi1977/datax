@@ -99,5 +99,6 @@ export const pages: NavItem[] = [
   { id: 'imports', title: 'Importaciones', perm: 'importaciones', group: 'Datos' },
   { id: 'catalogs', title: 'Catálogos', perm: 'catalogos', group: 'Datos' },
   { id: 'profiles', title: 'Perfiles', perm: 'perfiles', group: 'Administración' },
+  { id: 'audit', title: 'Auditoría', perm: 'auditoria', group: 'Administración' },
   { id: 'avatar-galleries', title: 'Galerías de avatares', perm: 'avatares', group: 'Administración' },
 ];

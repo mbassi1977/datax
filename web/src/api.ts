@@ -56,9 +56,11 @@ export async function upload<T = any>(path: string, form: FormData): Promise<T> 
 
 /** Descarga un archivo autenticado (la API exige el token, no sirve un enlace directo). */
 export async function download(path: string, filename: string): Promise<void> {
-  const headers: Record<string, string> = {};
+  const headers: Record<string, string> = { Accept: '*/*' };
   const token = session.token();
   if (token) headers.Authorization = `Bearer ${token}`;
+  const profile = session.profile();
+  if (profile) headers['X-Profile'] = profile;
   const res = await fetch(`/api/v1/${path}`, { headers });
   if (!res.ok) throw new ApiError(res.status, `Error ${res.status}`);
   const url = URL.createObjectURL(await res.blob());
