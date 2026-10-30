@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AreaController;
 use App\Http\Controllers\Api\V1\AvatarAdminController;
 use App\Http\Controllers\Api\V1\AvatarController;
+use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\ProfileAdminController;
 use App\Http\Controllers\Api\V1\BranchController;
@@ -39,6 +40,17 @@ Route::prefix('v1')->group(function () {
         Route::put('me/avatar', [AvatarController::class, 'select']);
         Route::post('me/avatar', [AvatarController::class, 'upload']);
         Route::delete('me/avatar', [AvatarController::class, 'remove']);
+
+        // Catálogos maestros y constructor de catálogos
+        Route::get('catalogs/{key}/options', [CatalogController::class, 'options']);
+        Route::get('catalogs', [CatalogController::class, 'index'])->middleware('permission:catalogos.ver');
+        Route::get('catalogs/{key}/items', [CatalogController::class, 'items'])->middleware('permission:catalogos.ver');
+        Route::post('catalogs', [CatalogController::class, 'storeType'])->middleware('permission:catalogos.crear');
+        Route::put('catalogs/{key}', [CatalogController::class, 'updateType'])->middleware('permission:catalogos.editar');
+        Route::delete('catalogs/{key}', [CatalogController::class, 'destroyType'])->middleware('permission:catalogos.eliminar');
+        Route::post('catalogs/{key}/items', [CatalogController::class, 'storeItem'])->middleware('permission:catalogos.crear');
+        Route::put('catalogs/{key}/items/{id}', [CatalogController::class, 'updateItem'])->middleware('permission:catalogos.editar');
+        Route::delete('catalogs/{key}/items/{id}', [CatalogController::class, 'destroyItem'])->middleware('permission:catalogos.eliminar');
 
         // Galerías de avatares y su asignación a empresas
         Route::get('avatar-collections', [AvatarAdminController::class, 'index'])->middleware('permission:avatares.ver');

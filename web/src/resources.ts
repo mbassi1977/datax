@@ -1,7 +1,8 @@
 // Definición declarativa de las pantallas de gestión.
 export type Field = {
   key: string; label: string;
-  type?: 'text' | 'email' | 'date' | 'password' | 'textarea' | 'select' | 'ref' | 'tags';
+  type?: 'text' | 'email' | 'date' | 'password' | 'textarea' | 'select' | 'ref' | 'tags' | 'catalog';
+  catalog?: string;                             // catalog: sugerencias desde un catálogo maestro (se puede escribir otro valor)
   options?: [string, string][];                 // select
   ref?: { path: string; label: (r: any) => string }; // ref: lista traída de la API
   required?: boolean; createOnly?: boolean; help?: string;
@@ -29,8 +30,8 @@ export const resources: Resource[] = [
     fields: [
       { key: 'legal_name', label: 'Razón social', required: true }, { key: 'trade_name', label: 'Nombre de fantasía' }, { key: 'rut', label: 'RUT' },
       { key: 'type', label: 'Tipo', type: 'select', options: [['company', 'Empresa'], ['client', 'Cliente'], ['provider', 'Proveedor'], ['otec', 'OTEC'], ['evaluator', 'Centro evaluador'], ['public', 'Institución pública'], ['social', 'Organización social']] },
-      { key: 'email', label: 'Correo', type: 'email' }, { key: 'phone', label: 'Teléfono' }, { key: 'region', label: 'Región' }, { key: 'commune', label: 'Comuna' },
-      { key: 'address', label: 'Dirección' }, { key: 'industry', label: 'Industria' },
+      { key: 'email', label: 'Correo', type: 'email' }, { key: 'phone', label: 'Teléfono' }, { key: 'region', label: 'Región', type: 'catalog', catalog: 'regiones' }, { key: 'commune', label: 'Comuna' },
+      { key: 'address', label: 'Dirección' }, { key: 'industry', label: 'Industria', type: 'catalog', catalog: 'industrias' },
     ],
   },
   {
@@ -60,7 +61,8 @@ export const resources: Resource[] = [
       { ...orgOptional, help: 'Opcional: una persona puede existir sin empresa (requiere alcance global).' },
       { key: 'first_name', label: 'Nombres', required: true }, { key: 'last_name', label: 'Apellido paterno' }, { key: 'second_last_name', label: 'Apellido materno' }, { key: 'rut', label: 'RUT' },
       { key: 'email', label: 'Correo', type: 'email' }, { key: 'phone', label: 'Teléfono' }, { key: 'birth_date', label: 'Fecha de nacimiento', type: 'date' },
-      { key: 'job_title', label: 'Cargo' }, { key: 'nationality', label: 'Nacionalidad' },
+      { key: 'job_title', label: 'Cargo', type: 'catalog', catalog: 'cargos' }, { key: 'nationality', label: 'Nacionalidad', type: 'catalog', catalog: 'nacionalidades' },
+      { key: 'sex', label: 'Sexo', type: 'catalog', catalog: 'sexo' },
       { key: 'roles', label: 'Roles', type: 'tags', options: roles.map((r) => [r, r]) },
       { key: 'area_id', label: 'Área', type: 'ref', ref: { path: 'areas', label: (a) => a.name } },
       { key: 'supervisor_id', label: 'Supervisor', type: 'ref', ref: { path: 'people', label: (p) => [p.first_name, p.last_name, p.second_last_name].filter(Boolean).join(' ') } },
@@ -95,6 +97,7 @@ export const groupOrder = ['Estructura', 'Personas y proyectos', 'Datos', 'Admin
 // Pantallas con interfaz propia (no son un CRUD genérico).
 export const pages: NavItem[] = [
   { id: 'imports', title: 'Importaciones', perm: 'importaciones', group: 'Datos' },
+  { id: 'catalogs', title: 'Catálogos', perm: 'catalogos', group: 'Datos' },
   { id: 'profiles', title: 'Perfiles', perm: 'perfiles', group: 'Administración' },
   { id: 'avatar-galleries', title: 'Galerías de avatares', perm: 'avatares', group: 'Administración' },
 ];

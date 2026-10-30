@@ -16,6 +16,7 @@ class DemoSeeder extends Seeder
     {
         $this->call(SecuritySeeder::class);
         $this->call(AvatarSeeder::class);
+        $this->call(CatalogSeeder::class);
 
         $tenant = Tenant::firstOrCreate(['slug' => 'demo'], ['name' => 'Demo HRX']);
         $org = Organization::firstOrCreate(

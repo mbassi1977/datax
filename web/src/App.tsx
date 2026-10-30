@@ -4,6 +4,7 @@ import { groupOrder, pages, resources } from './resources';
 import type { NavItem } from './resources';
 import { ImportsPage } from './ImportsPage';
 import { ProfilesPage } from './ProfilesPage';
+import { CatalogsPage } from './CatalogsPage';
 import { AvatarGalleriesPage } from './AvatarGalleriesPage';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
@@ -161,6 +162,7 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
         {currentResource ? <ResourcePage key={currentResource.id} res={currentResource} me={me} />
           : current?.id === 'imports' ? <ImportsPage me={me} />
           : current?.id === 'profiles' ? <ProfilesPage me={me} />
+          : current?.id === 'catalogs' ? <CatalogsPage me={me} />
           : current?.id === 'avatar-galleries' ? <AvatarGalleriesPage me={me} />
           : <Home me={me} />}
       </main>

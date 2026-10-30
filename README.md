@@ -35,6 +35,12 @@ y Laravel la sirve en `/`. Para modificarla: `cd web && npm install && npm run b
 | DELETE | `/api/v1/users/{id}/profiles/{asignación}` | `usuarios.editar` |
 | POST | `/api/v1/me/password` | token |
 
+### Catálogos
+`GET catalogs` (tipos), `GET catalogs/{key}/items`, `GET catalogs/{key}/options` (opciones activas para formularios; cualquier usuario),
+`POST|PUT|DELETE catalogs[/{key}]` (constructor de catálogos del tenant) y `POST|PUT|DELETE catalogs/{key}/items[/{id}]` (`catalogos.*`,
+escribir exige alcance global). Los del sistema (regiones, nacionalidades, industrias, sexo, cargos) son de solo lectura, y los marcados
+«abiertos» admiten entradas propias del tenant. Los formularios los usan como sugerencias (se puede escribir otro valor).
+
 ### Perfiles, avatares y galerías
 - `GET /permissions`, `POST|PUT|DELETE /profiles[/{id}]` (`perfiles.*`): perfiles propios del tenant; los de sistema son de solo lectura; solo se
   pueden incluir permisos que quien edita ya posee; un perfil asignado a usuarios no se elimina.

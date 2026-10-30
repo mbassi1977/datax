@@ -10,5 +10,6 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(SecuritySeeder::class);
         $this->call(AvatarSeeder::class);
+        $this->call(CatalogSeeder::class);
     }
 }

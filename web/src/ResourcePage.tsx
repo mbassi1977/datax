@@ -100,6 +100,11 @@ function FormModal({ res, row, refs, onClose, onSaved }: { res: Resource; row: a
   const [v, setV] = useState<Record<string, any>>(() => Object.fromEntries(res.fields.map((f) => [f.key, initial(f, row)])));
   const [err, setErr] = useState<{ msg: string; fields: Record<string, string[]> } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [catalogs, setCatalogs] = useState<Record<string, { code: string; label: string }[]>>({});
+  useEffect(() => {
+    [...new Set(res.fields.filter((f) => f.catalog).map((f) => f.catalog!))].forEach((c) =>
+      api<{ code: string; label: string }[]>('GET', `catalogs/${c}/options`).then((o) => setCatalogs((s) => ({ ...s, [c]: o }))).catch(() => {}));
+  }, [res.id]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -137,6 +142,11 @@ function FormModal({ res, row, refs, onClose, onSaved }: { res: Resource; row: a
               <div className="tags">{f.options!.map(([val, lab]) => (
                 <label key={val} className="check"><input type="checkbox" checked={v[f.key].includes(val)} onChange={(e) => set(f.key, e.target.checked ? [...v[f.key], val] : v[f.key].filter((x: string) => x !== val))} />{lab}</label>
               ))}</div>
+            ) : f.type === 'catalog' ? (
+              <>
+                <input list={`dl-${f.key}`} value={v[f.key] ?? ''} onChange={(e) => set(f.key, e.target.value)} autoComplete="off" />
+                <datalist id={`dl-${f.key}`}>{(catalogs[f.catalog!] ?? []).map((o) => <option key={o.code} value={o.label} />)}</datalist>
+              </>
             ) : f.type === 'textarea' ? (
               <textarea rows={3} value={v[f.key] ?? ''} onChange={(e) => set(f.key, e.target.value)} />
             ) : (
