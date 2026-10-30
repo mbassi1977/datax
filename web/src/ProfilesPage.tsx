@@ -7,7 +7,7 @@ type Profile = { id: string; code: string; name: string; is_system: boolean; use
 const resourceLabels: Record<string, string> = {
   organizaciones: 'Organizaciones', sucursales: 'Sucursales', areas: 'Áreas', centros_costo: 'Centros de costo', personas: 'Personas',
   proyectos: 'Proyectos', usuarios: 'Usuarios', perfiles: 'Perfiles', catalogos: 'Catálogos', auditoria: 'Auditoría',
-  importaciones: 'Importaciones', avatares: 'Galerías de avatares',
+  importaciones: 'Importaciones', avatares: 'Galerías de avatares', holdings: 'Holdings',
 };
 const actions: [string, string][] = [['ver', 'Ver'], ['crear', 'Crear'], ['editar', 'Editar'], ['eliminar', 'Eliminar']];
 

@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V1\MediaController;
 use App\Http\Controllers\Api\V1\ProfileAdminController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\CostCenterController;
+use App\Http\Controllers\Api\V1\HoldingController;
 use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\OrganizationController;
 use App\Http\Controllers\Api\V1\PersonController;
@@ -41,6 +42,13 @@ Route::prefix('v1')->group(function () {
         Route::put('me/avatar', [AvatarController::class, 'select']);
         Route::post('me/avatar', [AvatarController::class, 'upload']);
         Route::delete('me/avatar', [AvatarController::class, 'remove']);
+
+        // Holdings
+        Route::get('holdings', [HoldingController::class, 'index'])->middleware('permission:holdings.ver');
+        Route::get('holdings/{id}', [HoldingController::class, 'show'])->middleware('permission:holdings.ver');
+        Route::post('holdings', [HoldingController::class, 'store'])->middleware('permission:holdings.crear');
+        Route::put('holdings/{id}', [HoldingController::class, 'update'])->middleware('permission:holdings.editar');
+        Route::delete('holdings/{id}', [HoldingController::class, 'destroy'])->middleware('permission:holdings.eliminar');
 
         // Bitácora de auditoría
         Route::get('audit-events/meta', [AuditController::class, 'meta'])->middleware('permission:auditoria.ver');

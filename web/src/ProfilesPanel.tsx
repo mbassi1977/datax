@@ -8,6 +8,7 @@ type Profile = { code: string; name: string; permissions: string[] };
 export function ProfilesPanel({ user, orgs, onClose }: { user: any; orgs: any[]; onClose: () => void }) {
   const [items, setItems] = useState<Assignment[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [holdings, setHoldings] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({ profile: '', scope_type: 'global', scope_id: '', valid_until: '' });
   const [error, setError] = useState('');
 
@@ -17,11 +18,13 @@ export function ProfilesPanel({ user, orgs, onClose }: { user: any; orgs: any[];
 
   useEffect(() => {
     load();
+    api<{ data: { id: string; name: string }[] }>('GET', 'holdings').then((r) => setHoldings(r.data)).catch(() => {});
     api<Profile[]>('GET', 'profiles').then((p) => { setProfiles(p); setForm((f) => ({ ...f, profile: p[0]?.code ?? '' })); }).catch(() => {});
   }, [load]);
 
   const orgName = (id: string | null) => orgs.find((o) => o.id === id)?.legal_name ?? id ?? '';
-  const scopeLabel = (a: Assignment) => (a.scope_type === 'global' ? 'Global' : `Organización: ${orgName(a.scope_id)}`);
+  const holdingName = (id: string | null) => holdings.find((h) => h.id === id)?.name ?? id ?? '';
+  const scopeLabel = (a: Assignment) => (a.scope_type === 'global' ? 'Global' : a.scope_type === 'holding' ? `Holding: ${holdingName(a.scope_id)}` : `Organización: ${orgName(a.scope_id)}`);
 
   const add = async (e: FormEvent) => {
     e.preventDefault(); setError('');
@@ -62,9 +65,16 @@ export function ProfilesPanel({ user, orgs, onClose }: { user: any; orgs: any[];
         </label>
         <label><span>Alcance</span>
           <select value={form.scope_type} onChange={(e) => setForm({ ...form, scope_type: e.target.value })}>
-            <option value="global">Global (todo el tenant)</option><option value="organization">Una organización</option>
+            <option value="global">Global (todo el tenant)</option><option value="holding">Un holding (todas sus organizaciones)</option><option value="organization">Una organización</option>
           </select>
         </label>
+        {form.scope_type === 'holding' && (
+          <label><span>Holding</span>
+            <select required value={form.scope_id} onChange={(e) => setForm({ ...form, scope_id: e.target.value })}>
+              <option value="">— elegir —</option>{holdings.map((h) => <option key={h.id} value={h.id}>{h.name}</option>)}
+            </select>
+          </label>
+        )}
         {form.scope_type === 'organization' && (
           <label><span>Organización</span>
             <select required value={form.scope_id} onChange={(e) => setForm({ ...form, scope_id: e.target.value })}>

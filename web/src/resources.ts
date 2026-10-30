@@ -25,11 +25,17 @@ const roles = ['trabajador', 'consultor', 'relator', 'evaluador', 'participante'
 
 export const resources: Resource[] = [
   {
+    id: 'holdings', title: 'Holdings', path: 'holdings', perm: 'holdings', group: 'Estructura',
+    columns: [{ key: 'name', label: 'Nombre' }, { key: 'organizations_count', label: 'Organizaciones' }],
+    fields: [{ key: 'name', label: 'Nombre del holding', required: true }],
+  },
+  {
     id: 'organizations', title: 'Organizaciones', path: 'organizations', perm: 'organizaciones', group: 'Estructura',
-    columns: [{ key: 'legal_name', label: 'Razón social' }, { key: 'rut', label: 'RUT' }, { key: 'type', label: 'Tipo' }, { key: 'status', label: 'Estado' }],
+    columns: [{ key: 'legal_name', label: 'Razón social' }, { key: 'rut', label: 'RUT' }, { key: 'holding_id', label: 'Holding', render: (r, refs) => (refs.holdings ?? []).find((h) => h.id === r.holding_id)?.name ?? '—' }, { key: 'type', label: 'Tipo' }, { key: 'status', label: 'Estado' }],
     fields: [
       { key: 'legal_name', label: 'Razón social', required: true }, { key: 'trade_name', label: 'Nombre de fantasía' }, { key: 'rut', label: 'RUT' },
       { key: 'type', label: 'Tipo', type: 'select', options: [['company', 'Empresa'], ['client', 'Cliente'], ['provider', 'Proveedor'], ['otec', 'OTEC'], ['evaluator', 'Centro evaluador'], ['public', 'Institución pública'], ['social', 'Organización social']] },
+      { key: 'holding_id', label: 'Holding (grupo empresarial)', type: 'ref', ref: { path: 'holdings', label: (h) => h.name } },
       { key: 'email', label: 'Correo', type: 'email' }, { key: 'phone', label: 'Teléfono' }, { key: 'region', label: 'Región', type: 'catalog', catalog: 'regiones' }, { key: 'commune', label: 'Comuna' },
       { key: 'address', label: 'Dirección' }, { key: 'industry', label: 'Industria', type: 'catalog', catalog: 'industrias' },
     ],

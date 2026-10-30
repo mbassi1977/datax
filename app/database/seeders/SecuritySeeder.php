@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 /** Perfiles de sistema y permisos base del núcleo (cap. 13). */
 class SecuritySeeder extends Seeder
 {
-    private array $resources = ['organizaciones', 'avatares', 'importaciones', 'sucursales', 'areas', 'centros_costo', 'personas', 'proyectos', 'usuarios', 'perfiles', 'catalogos', 'auditoria'];
+    private array $resources = ['organizaciones', 'holdings', 'avatares', 'importaciones', 'sucursales', 'areas', 'centros_costo', 'personas', 'proyectos', 'usuarios', 'perfiles', 'catalogos', 'auditoria'];
     private array $actions = ['ver', 'crear', 'editar', 'eliminar'];
 
     private array $profiles = [

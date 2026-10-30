@@ -18,6 +18,7 @@ const paths: Record<string, string> = {
   camera: 'M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1zM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
   catalogs: 'M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6zM8 9h8M8 13h8M8 17h5',
   audit: 'M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1zM6 6h12a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1zM9 12h6M9 16h4',
+  holdings: 'M12 3l9 5v2H3V8l9-5zM5 10v8M9.5 10v8M14.5 10v8M19 10v8M3 21h18M3 18h18',
   chevron: 'M6 9l6 6 6-6',
   collapse: 'M11 17l-5-5 5-5M18 17l-5-5 5-5',
   expand: 'M13 17l5-5-5-5M6 17l5-5-5-5',
