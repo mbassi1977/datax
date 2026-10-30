@@ -8,6 +8,7 @@ import { CatalogsPage } from './CatalogsPage';
 import { AuditPage } from './AuditPage';
 import { SettingsPage } from './SettingsPage';
 import { MfaPanel } from './MfaPanel';
+import { PhotoEditor } from './PhotoEditor';
 import { setLocale } from './fmt';
 import { AvatarGalleriesPage } from './AvatarGalleriesPage';
 import { Avatar } from './Avatar';
@@ -278,12 +279,15 @@ function PhotoTab({ me, reload }: { me: Me; reload: () => void }) {
   };
   const pick = (id: string) => act(() => api('PUT', 'me/avatar', { avatar_id: id }));
   const remove = () => act(() => api('DELETE', 'me/avatar'));
-  const send = (file?: File) => {
-    if (!file) return;
+  const [editing, setEditing] = useState(false);
+  const sendBlob = async (blob: Blob) => {
     const form = new FormData();
-    form.append('file', file);
-    return act(() => upload('me/avatar', form));
+    form.append('file', new File([blob], 'foto.jpg', { type: blob.type || 'image/jpeg' }));
+    await upload('me/avatar', form);
+    setEditing(false); load(); reload();
   };
+
+  if (editing) return <PhotoEditor onCancel={() => setEditing(false)} onSave={sendBlob} />;
 
   return (
     <div className="photo">
@@ -292,12 +296,10 @@ function PhotoTab({ me, reload }: { me: Me; reload: () => void }) {
         <div>
           <p><strong>{me.email}</strong></p>
           <div className="buttons left">
-            <label className="btn">
-              Subir mi foto<input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={busy} onChange={(e) => { send(e.target.files?.[0]); e.target.value = ''; }} />
-            </label>
+            <button onClick={() => setEditing(true)} disabled={busy}>Subir o tomar foto</button>
             {(opts?.avatar_url ?? me.avatar_url) && <button onClick={remove} disabled={busy}>Quitar</button>}
           </div>
-          <small className="muted">JPG, PNG o WebP de hasta 4 MB. Se recorta a cuadrado y se reduce.</small>
+          <small className="muted">Podrá girarla y recortarla antes de guardarla.</small>
         </div>
       </div>
       {error && <p className="error">{error}</p>}
