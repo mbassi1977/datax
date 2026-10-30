@@ -90,7 +90,7 @@ export const resources: Resource[] = [
   },
   {
     id: 'users', title: 'Usuarios', path: 'users', perm: 'usuarios', group: 'Administración', profilesPanel: true,
-    columns: [{ key: 'email', label: 'Correo', avatar: true }, { key: 'organization_id', label: 'Organización', render: orgName }, { key: 'status', label: 'Estado' }, { key: 'last_login_at', label: 'Último acceso', render: (r) => formatDateTime(r.last_login_at) }],
+    columns: [{ key: 'email', label: 'Correo', avatar: true }, { key: 'organization_id', label: 'Organización', render: orgName }, { key: 'status', label: 'Estado' }, { key: 'mfa_enabled', label: 'MFA', render: (r) => (r.mfa_enabled ? 'Sí' : '—') }, { key: 'last_login_at', label: 'Último acceso', render: (r) => formatDateTime(r.last_login_at) }],
     fields: [
       { ...orgOptional, label: 'Organización principal' }, { key: 'email', label: 'Correo', type: 'email', required: true },
       { key: 'password', label: 'Contraseña', type: 'password', help: 'Mínimo 10 caracteres, con letras y números. En edición, déjela vacía para no cambiarla.' },

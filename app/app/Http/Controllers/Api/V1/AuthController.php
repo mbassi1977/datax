@@ -7,6 +7,7 @@ use App\Models\AuditEvent;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Support\Access\AccessService;
+use App\Support\Mfa\MfaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
-    public function login(Request $request): JsonResponse
+    public function login(Request $request, MfaService $mfa): JsonResponse
     {
         $data = $request->validate([
             'tenant' => ['required', 'string'],
@@ -31,8 +32,45 @@ class AuthController extends Controller
             return response()->json(['message' => 'Credenciales inválidas.'], 401);
         }
 
+        // Con MFA activa, la contraseña sola no basta: se entrega un desafío de 5 minutos para el segundo paso.
+        if ($mfa->isEnabled($user)) {
+            return response()->json(['mfa_required' => true, 'mfa_token' => $mfa->challengeToken($user)]);
+        }
+
+        return $this->issueToken($user, false);
+    }
+
+    /** Segundo paso del login: código de la app autenticadora o código de recuperación. */
+    public function verifyMfa(Request $request, MfaService $mfa): JsonResponse
+    {
+        $data = $request->validate(['mfa_token' => ['required', 'string'], 'code' => ['nullable', 'string', 'max:20'], 'recovery_code' => ['nullable', 'string', 'max:20']]);
+        $user = $mfa->userFromChallenge($data['mfa_token']);
+        if (! $user || $user->status !== 'active') {
+            return response()->json(['message' => 'La verificación venció. Inicie sesión nuevamente.'], 401);
+        }
+        if (empty($data['code']) && empty($data['recovery_code'])) {
+            return response()->json(['message' => 'Ingrese el código de su aplicación autenticadora.'], 422);
+        }
+        if ($mfa->tooManyAttempts($user)) {
+            AuditEvent::record('mfa_locked', null, null, null, $user->tenant_id, $user->id);
+
+            return response()->json(['message' => 'Demasiados intentos. Espere unos minutos e inicie sesión nuevamente.'], 429);
+        }
+        if (! $mfa->check($user, $data['code'] ?? null, $data['recovery_code'] ?? null)) {
+            $mfa->hit($user);
+            AuditEvent::record('mfa_failed', null, null, null, $user->tenant_id, $user->id);
+
+            return response()->json(['message' => 'Código incorrecto.'], 401);
+        }
+        $mfa->clear($user);
+
+        return $this->issueToken($user, true);
+    }
+
+    private function issueToken(User $user, bool $withMfa): JsonResponse
+    {
         $user->forceFill(['last_login_at' => now()])->saveQuietly();
-        AuditEvent::record('login', null, null, null, $user->tenant_id, $user->id);
+        AuditEvent::record('login', null, null, $withMfa ? ['mfa' => true] : null, $user->tenant_id, $user->id);
 
         return response()->json([
             'token' => $user->createToken('api')->plainTextToken,
@@ -42,7 +80,7 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        $request->user()->currentAccessToken()?->delete();
         AuditEvent::record('logout');
 
         return response()->json(['message' => 'Sesión cerrada.']);
@@ -77,6 +115,7 @@ class AuthController extends Controller
             'tenant_id' => $user->tenant_id,
             'avatar_url' => $user->avatar_url,
             'settings' => app(\App\Support\Settings\SettingsService::class)->forClient($user->tenant_id, $user->organization_id),
+            'mfa' => ['enabled' => $user->mfa_enabled_at !== null, 'recovery_remaining' => count($user->mfa_recovery_codes ?? [])],
             'is_superadmin' => $user->is_superadmin,
             'profiles' => DB::table('security.user_profiles as up')
                 ->join('security.profiles as p', 'p.id', '=', 'up.profile_id')

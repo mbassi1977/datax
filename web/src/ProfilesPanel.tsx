@@ -11,6 +11,7 @@ export function ProfilesPanel({ user, orgs, onClose }: { user: any; orgs: any[];
   const [holdings, setHoldings] = useState<{ id: string; name: string }[]>([]);
   const [form, setForm] = useState({ profile: '', scope_type: 'global', scope_id: '', valid_until: '' });
   const [error, setError] = useState('');
+  const [mfaOn, setMfaOn] = useState<boolean>(Boolean(user.mfa_enabled));
 
   const load = useCallback(async () => {
     try { setItems(await api('GET', `users/${user.id}/profiles`)); } catch (e) { setError((e as Error).message); }
@@ -39,6 +40,11 @@ export function ProfilesPanel({ user, orgs, onClose }: { user: any; orgs: any[];
       const ae = e2 as ApiError;
       setError(Object.values(ae.errors).flat().join(' ') || ae.message);
     }
+  };
+
+  const resetMfa = async () => {
+    if (!confirm(`¿Restablecer la verificación en dos pasos de ${user.email}? Se cerrarán sus sesiones y deberá activarla de nuevo.`)) return;
+    try { await api('DELETE', `users/${user.id}/mfa`); setMfaOn(false); } catch (e) { setError((e as Error).message); }
   };
 
   const revoke = async (a: Assignment) => {
@@ -86,6 +92,8 @@ export function ProfilesPanel({ user, orgs, onClose }: { user: any; orgs: any[];
         <div className="wide buttons"><button className="primary">Asignar</button></div>
       </form>
       <small className="muted">Solo puede asignar perfiles cuyos permisos y alcance usted ya posee.</small>
+      <h3>Verificación en dos pasos</h3>
+      <p>{mfaOn ? <><span className="badge completed">Activa</span> {' '}<button className="danger" onClick={resetMfa}>Restablecer (perdió su dispositivo)</button></> : <span className="muted">No activada por el usuario.</span>}</p>
     </Modal>
   );
 }

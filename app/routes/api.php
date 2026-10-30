@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V1\AvatarAdminController;
 use App\Http\Controllers\Api\V1\AvatarController;
 use App\Http\Controllers\Api\V1\CatalogController;
 use App\Http\Controllers\Api\V1\MediaController;
+use App\Http\Controllers\Api\V1\MfaController;
 use App\Http\Controllers\Api\V1\ProfileAdminController;
 use App\Http\Controllers\Api\V1\SettingsController;
 use App\Http\Controllers\Api\V1\BranchController;
@@ -22,13 +23,14 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+    Route::post('auth/mfa', [AuthController::class, 'verifyMfa'])->middleware('throttle:20,1');
 
     // Imágenes de avatar: URL firmada (un <img> no puede enviar el token)
     Route::get('media/avatars/{avatar}', [MediaController::class, 'avatar'])->name('media.avatar')->middleware('signed:relative');
     Route::get('media/logos/{setting}', [MediaController::class, 'logo'])->name('media.logo')->middleware('signed:relative');
     Route::get('media/users/{user}/avatar', [MediaController::class, 'userAvatar'])->name('media.user-avatar')->middleware('signed:relative');
 
-    Route::middleware(['auth:sanctum', 'active'])->group(function () {
+    Route::middleware(['auth:sanctum', 'active', 'mfa'])->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('me', [AuthController::class, 'me']);
         Route::post('me/password', [AuthController::class, 'changePassword']);
@@ -38,6 +40,12 @@ Route::prefix('v1')->group(function () {
         Route::post('profiles', [ProfileAdminController::class, 'store'])->middleware('permission:perfiles.crear');
         Route::put('profiles/{id}', [ProfileAdminController::class, 'update'])->middleware('permission:perfiles.editar');
         Route::delete('profiles/{id}', [ProfileAdminController::class, 'destroy'])->middleware('permission:perfiles.eliminar');
+
+        // Verificación en dos pasos (propia)
+        Route::post('me/mfa/setup', [MfaController::class, 'setup']);
+        Route::post('me/mfa/confirm', [MfaController::class, 'confirm']);
+        Route::post('me/mfa/recovery-codes', [MfaController::class, 'recoveryCodes']);
+        Route::delete('me/mfa', [MfaController::class, 'disable']);
 
         // Mi avatar (cualquier usuario autenticado)
         Route::get('me/avatar', [AvatarController::class, 'options']);
@@ -83,6 +91,7 @@ Route::prefix('v1')->group(function () {
         Route::post('avatar-collections/{id}/avatars', [AvatarAdminController::class, 'addAvatars'])->middleware('permission:avatares.crear');
         Route::put('avatars/{id}', [AvatarAdminController::class, 'updateAvatar'])->middleware('permission:avatares.editar');
         Route::delete('avatars/{id}', [AvatarAdminController::class, 'destroyAvatar'])->middleware('permission:avatares.eliminar');
+        Route::delete('users/{userId}/mfa', [UserProfileController::class, 'resetMfa'])->middleware('permission:usuarios.editar');
         Route::get('users/{userId}/profiles', [UserProfileController::class, 'index'])->middleware('permission:usuarios.ver');
         Route::post('users/{userId}/profiles', [UserProfileController::class, 'assign'])->middleware('permission:usuarios.editar');
         Route::delete('users/{userId}/profiles/{assignmentId}', [UserProfileController::class, 'revoke'])->middleware('permission:usuarios.editar');

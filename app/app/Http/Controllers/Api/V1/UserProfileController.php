@@ -99,6 +99,17 @@ class UserProfileController extends Controller
         return response()->json(null, 204);
     }
 
+    /** El administrador restablece la MFA de un usuario que perdió su dispositivo y sus códigos de recuperación. */
+    public function resetMfa(Request $request, string $userId, \App\Support\Mfa\MfaService $mfa): JsonResponse
+    {
+        $user = $this->targetUser($request, $userId, 'usuarios.editar');
+        $mfa->disable($user);
+        $user->tokens()->delete(); // sus sesiones abiertas se cierran
+        AuditEvent::record('mfa_reset', $user);
+
+        return response()->json(null, 204);
+    }
+
     private function targetUser(Request $request, string $userId, string $permission): User
     {
         $user = User::where('tenant_id', $request->user()->tenant_id)->findOrFail($userId);

@@ -12,7 +12,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable(['tenant_id', 'person_id', 'organization_id', 'email', 'password', 'status', 'created_by', 'updated_by'])]
-#[Hidden(['password', 'remember_token', 'avatar_path'])]
+#[Hidden(['password', 'remember_token', 'avatar_path', 'mfa_secret', 'mfa_recovery_codes', 'mfa_last_step', 'mfa_enabled_at'])]
 class User extends Authenticatable
 {
     use Auditable, HasApiTokens, HasUuids, Notifiable, SoftDeletes;
@@ -21,7 +21,12 @@ class User extends Authenticatable
 
     protected $attributes = ['status' => 'active']; // igual que el default de la columna
 
-    protected $appends = ['avatar_url'];
+    protected $appends = ['avatar_url', 'mfa_enabled'];
+
+    protected function mfaEnabled(): \Illuminate\Database\Eloquent\Casts\Attribute
+    {
+        return \Illuminate\Database\Eloquent\Casts\Attribute::get(fn () => $this->mfa_enabled_at !== null);
+    }
 
     protected function avatarUrl(): \Illuminate\Database\Eloquent\Casts\Attribute
     {
@@ -35,6 +40,8 @@ class User extends Authenticatable
             'last_login_at' => 'datetime',
             'is_superadmin' => 'boolean',
             'avatar_updated_at' => 'datetime',
+            'mfa_enabled_at' => 'datetime',
+            'mfa_recovery_codes' => 'array',
             'password' => 'hashed',
         ];
     }

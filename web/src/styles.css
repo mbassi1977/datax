@@ -150,3 +150,8 @@ nav a.brand { display: flex; align-items: center; gap: .5rem; min-height: 40px; 
 .stickybar { position: sticky; bottom: 0; padding: .8rem 0; background: var(--bg); }
 @media (max-width: 760px) { .setting { grid-template-columns: 1fr; } }
 nav a.brand { overflow: hidden; } nav a.brand .logo { max-width: 88px; flex: none; } nav a.brand span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.05rem; }
+
+/* MFA */
+.wide-card { width: min(520px, 100%); } .qr { display: grid; place-items: center; padding: .5rem; } .qr img { background: #fff; padding: 6px; border-radius: 8px; }
+code.secret { letter-spacing: .08em; word-break: break-all; }
+ul.codes { list-style: none; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: .4rem .8rem; } ul.codes code { font-size: 1rem; }

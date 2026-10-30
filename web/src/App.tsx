@@ -7,6 +7,7 @@ import { ProfilesPage } from './ProfilesPage';
 import { CatalogsPage } from './CatalogsPage';
 import { AuditPage } from './AuditPage';
 import { SettingsPage } from './SettingsPage';
+import { MfaPanel } from './MfaPanel';
 import { setLocale } from './fmt';
 import { AvatarGalleriesPage } from './AvatarGalleriesPage';
 import { Avatar } from './Avatar';
@@ -39,23 +40,50 @@ export function App() {
 
   if (!ready) return <p className="center muted">Cargando…</p>;
   if (!me) return <Login onDone={loadMe} />;
+  if (me.settings?.security.mfa_required && !me.mfa?.enabled) return <ForcedMfa me={me} reload={loadMe} />;
   return <Shell me={me} reload={loadMe} />;
+}
+
+function ForcedMfa({ me, reload }: { me: Me; reload: () => void }) {
+  const logout = async () => { try { await api('POST', 'auth/logout'); } catch { /* token ya inválido */ } session.setToken(null); location.reload(); };
+  return (
+    <main className="login">
+      <div className="card pad wide-card">
+        <h1>Verificación en dos pasos</h1>
+        <MfaPanel me={me} reload={reload} forced />
+        <div className="buttons left"><button onClick={logout}>Salir</button></div>
+      </div>
+    </main>
+  );
 }
 
 function Login({ onDone }: { onDone: () => void }) {
   const [tenant, setTenant] = useState(session.tenant());
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [challenge, setChallenge] = useState<string | null>(null);   // segundo paso (MFA)
+  const [code, setCode] = useState('');
+  const [recovery, setRecovery] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  const finish = (token: string) => { session.setTenant(tenant); session.setProfile(null); session.setToken(token); onDone(); };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setError('');
     try {
-      const r = await api<{ token: string }>('POST', 'auth/login', { tenant, email, password });
-      session.setTenant(tenant); session.setProfile(null); session.setToken(r.token);
-      onDone();
-    } catch (e2) { setError((e2 as ApiError).message); } finally { setBusy(false); }
+      if (challenge) {
+        const r = await api<{ token: string }>('POST', 'auth/mfa', { mfa_token: challenge, ...(recovery ? { recovery_code: code } : { code }) });
+        finish(r.token);
+      } else {
+        const r = await api<{ token?: string; mfa_required?: boolean; mfa_token?: string }>('POST', 'auth/login', { tenant, email, password });
+        if (r.mfa_required && r.mfa_token) { setChallenge(r.mfa_token); setCode(''); } else finish(r.token!);
+      }
+    } catch (e2) {
+      const ae = e2 as ApiError;
+      setError(ae.message);
+      if (challenge && ae.status === 401 && /venci/i.test(ae.message)) { setChallenge(null); setPassword(''); }
+    } finally { setBusy(false); }
   };
 
   return (
@@ -63,11 +91,23 @@ function Login({ onDone }: { onDone: () => void }) {
       <form className="card" onSubmit={submit}>
         <h1>HRX</h1>
         <p className="muted">Plataforma de Gestión Organizacional</p>
-        <label><span>Organización cliente (tenant)</span><input value={tenant} onChange={(e) => setTenant(e.target.value)} required /></label>
-        <label><span>Correo</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></label>
-        <label><span>Contraseña</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
+        {challenge ? (
+          <>
+            <p><strong>Verificación en dos pasos</strong></p>
+            <label><span>{recovery ? 'Código de recuperación' : 'Código de 6 dígitos de su aplicación autenticadora'}</span>
+              <input value={code} onChange={(e) => setCode(e.target.value)} required autoFocus autoComplete="one-time-code" inputMode={recovery ? 'text' : 'numeric'} /></label>
+            <button type="button" className="link" onClick={() => { setRecovery(!recovery); setCode(''); setError(''); }}>{recovery ? 'Usar el código de la aplicación' : 'No tengo mi teléfono: usar un código de recuperación'}</button>
+          </>
+        ) : (
+          <>
+            <label><span>Organización cliente (tenant)</span><input value={tenant} onChange={(e) => setTenant(e.target.value)} required /></label>
+            <label><span>Correo</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></label>
+            <label><span>Contraseña</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required /></label>
+          </>
+        )}
         {error && <p className="error">{error}</p>}
-        <button className="primary" disabled={busy}>{busy ? 'Ingresando…' : 'Ingresar'}</button>
+        <button className="primary" disabled={busy}>{busy ? 'Verificando…' : challenge ? 'Verificar' : 'Ingresar'}</button>
+        {challenge && <button type="button" onClick={() => { setChallenge(null); setPassword(''); setError(''); }}>Volver</button>}
       </form>
     </main>
   );
@@ -211,14 +251,15 @@ function Home({ me }: { me: Me }) {
 type AvatarOptions = { avatar_url: string | null; selected_id: string | null; has_upload: boolean; collections: { id: string; name: string; description: string | null; avatars: { id: string; name: string; url: string }[] }[] };
 
 function Account({ me, reload, onClose }: { me: Me; reload: () => void; onClose: () => void }) {
-  const [tab, setTab] = useState<'photo' | 'password'>('photo');
+  const [tab, setTab] = useState<'photo' | 'security' | 'password'>('photo');
   return (
     <Modal title="Mi cuenta" onClose={onClose}>
       <div className="tabs" role="tablist">
         <button role="tab" aria-selected={tab === 'photo'} className={tab === 'photo' ? 'on' : ''} onClick={() => setTab('photo')}>Foto de perfil</button>
+        <button role="tab" aria-selected={tab === 'security'} className={tab === 'security' ? 'on' : ''} onClick={() => setTab('security')}>Verificación en 2 pasos</button>
         <button role="tab" aria-selected={tab === 'password'} className={tab === 'password' ? 'on' : ''} onClick={() => setTab('password')}>Contraseña</button>
       </div>
-      {tab === 'photo' ? <PhotoTab me={me} reload={reload} /> : <PasswordTab onClose={onClose} />}
+      {tab === 'photo' ? <PhotoTab me={me} reload={reload} /> : tab === 'security' ? <MfaPanel me={me} reload={reload} /> : <PasswordTab onClose={onClose} />}
     </Modal>
   );
 }

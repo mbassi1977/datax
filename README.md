@@ -35,6 +35,14 @@ y Laravel la sirve en `/`. Para modificarla: `cd web && npm install && npm run b
 | DELETE | `/api/v1/users/{id}/profiles/{asignación}` | `usuarios.editar` |
 | POST | `/api/v1/me/password` | token |
 
+### Verificación en dos pasos (MFA)
+TOTP estándar (Google/Microsoft Authenticator, Authy, 1Password…). `POST me/mfa/setup` → `POST me/mfa/confirm` (devuelve 10 códigos de
+recuperación, una sola vez) · `DELETE me/mfa` y `POST me/mfa/recovery-codes` exigen contraseña y código. Con MFA activa, `auth/login`
+responde `{mfa_required, mfa_token}` (válido 5 min) y `POST auth/mfa` (`code` o `recovery_code`) entrega el token. Un código TOTP no se
+puede reutilizar; tras 5 fallos hay bloqueo de 5 minutos. El secreto se guarda cifrado y los códigos de recuperación solo como hash.
+Si la empresa activa `security.mfa_required`, quien no tenga MFA solo puede ver `/me`, activarla o salir (`403 mfa_enrollment_required`).
+`DELETE users/{id}/mfa` (`usuarios.editar`) la restablece y cierra las sesiones del usuario.
+
 ### Configuración (tenant y empresa)
 `GET|PUT settings[?organization_id=]`, `POST|DELETE settings/logo` (`configuracion.*`). Valor efectivo = empresa → general → defecto.
 Parámetros: nombre visible, color principal, logo, zona horaria, formato de fecha, política de contraseñas (largo mínimo, símbolo,

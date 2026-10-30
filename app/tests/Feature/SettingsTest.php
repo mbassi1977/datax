@@ -95,7 +95,7 @@ class SettingsTest extends TestCase
             ['security.password_min_length', 500], ['security.mfa_required', 'quizás'], ['brand.name', str_repeat('x', 81)], ['clave.inventada', 1]] as [$k, $v]) {
             $this->putJson('/api/v1/settings', ['values' => [$k => $v]])->assertStatus(422);
         }
-        $this->putJson('/api/v1/settings', ['values' => ['security.password_min_length' => '12', 'security.mfa_required' => true]])->assertOk();
+        $this->putJson('/api/v1/settings', ['values' => ['security.password_min_length' => '12', 'security.password_require_symbol' => true]])->assertOk();
         $this->assertSame(12, $this->def($this->getJson('/api/v1/settings')->json(), 'security.password_min_length')['value']);
         $this->putJson('/api/v1/settings', ['organization_id' => (string) Str::uuid(), 'values' => ['brand.name' => 'x']])->assertStatus(404);
     }
