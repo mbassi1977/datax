@@ -1,8 +1,11 @@
 import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { api, ApiError, Me, session, setUnauthorizedHandler } from './api';
+import { api, ApiError, Me, session, setUnauthorizedHandler, upload } from './api';
 import { groupOrder, pages, resources } from './resources';
 import type { NavItem } from './resources';
 import { ImportsPage } from './ImportsPage';
+import { ProfilesPage } from './ProfilesPage';
+import { AvatarGalleriesPage } from './AvatarGalleriesPage';
+import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 import { can, Modal, ResourcePage } from './ResourcePage';
 
@@ -151,15 +154,17 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
             </select>
           </label>
         )}
-        <button className="navbtn" onClick={() => setAccount(true)} title="Cambiar contraseña"><Icon name="user" /><span>{me.email}</span></button>
+        <button className="navbtn" onClick={() => setAccount(true)} title="Mi cuenta: foto y contraseña"><Avatar url={me.avatar_url} label={me.email} size={24} /><span>{me.email}</span></button>
         <button className="navbtn" onClick={logout} title="Salir"><Icon name="logout" /><span>Salir</span></button>
       </nav>
       <main>
         {currentResource ? <ResourcePage key={currentResource.id} res={currentResource} me={me} />
           : current?.id === 'imports' ? <ImportsPage me={me} />
+          : current?.id === 'profiles' ? <ProfilesPage me={me} />
+          : current?.id === 'avatar-galleries' ? <AvatarGalleriesPage me={me} />
           : <Home me={me} />}
       </main>
-      {account && <Account onClose={() => setAccount(false)} />}
+      {account && <Account me={me} reload={reload} onClose={() => setAccount(false)} />}
     </div>
   );
 }
@@ -178,7 +183,77 @@ function Home({ me }: { me: Me }) {
   );
 }
 
-function Account({ onClose }: { onClose: () => void }) {
+type AvatarOptions = { avatar_url: string | null; selected_id: string | null; has_upload: boolean; collections: { id: string; name: string; description: string | null; avatars: { id: string; name: string; url: string }[] }[] };
+
+function Account({ me, reload, onClose }: { me: Me; reload: () => void; onClose: () => void }) {
+  const [tab, setTab] = useState<'photo' | 'password'>('photo');
+  return (
+    <Modal title="Mi cuenta" onClose={onClose}>
+      <div className="tabs" role="tablist">
+        <button role="tab" aria-selected={tab === 'photo'} className={tab === 'photo' ? 'on' : ''} onClick={() => setTab('photo')}>Foto de perfil</button>
+        <button role="tab" aria-selected={tab === 'password'} className={tab === 'password' ? 'on' : ''} onClick={() => setTab('password')}>Contraseña</button>
+      </div>
+      {tab === 'photo' ? <PhotoTab me={me} reload={reload} /> : <PasswordTab onClose={onClose} />}
+    </Modal>
+  );
+}
+
+function PhotoTab({ me, reload }: { me: Me; reload: () => void }) {
+  const [opts, setOpts] = useState<AvatarOptions | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => { api<AvatarOptions>('GET', 'me/avatar').then(setOpts).catch((e) => setError(e.message)); }, []);
+  useEffect(load, [load]);
+
+  const act = async (fn: () => Promise<unknown>) => {
+    setBusy(true); setError('');
+    try { await fn(); load(); reload(); } catch (e) { setError((e as ApiError).message); } finally { setBusy(false); }
+  };
+  const pick = (id: string) => act(() => api('PUT', 'me/avatar', { avatar_id: id }));
+  const remove = () => act(() => api('DELETE', 'me/avatar'));
+  const send = (file?: File) => {
+    if (!file) return;
+    const form = new FormData();
+    form.append('file', file);
+    return act(() => upload('me/avatar', form));
+  };
+
+  return (
+    <div className="photo">
+      <div className="current">
+        <Avatar url={opts?.avatar_url ?? me.avatar_url} label={me.email} size={96} />
+        <div>
+          <p><strong>{me.email}</strong></p>
+          <div className="buttons left">
+            <label className="btn">
+              Subir mi foto<input type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={busy} onChange={(e) => { send(e.target.files?.[0]); e.target.value = ''; }} />
+            </label>
+            {(opts?.avatar_url ?? me.avatar_url) && <button onClick={remove} disabled={busy}>Quitar</button>}
+          </div>
+          <small className="muted">JPG, PNG o WebP de hasta 4 MB. Se recorta a cuadrado y se reduce.</small>
+        </div>
+      </div>
+      {error && <p className="error">{error}</p>}
+      <h3>O elija un avatar de la galería</h3>
+      {opts && opts.collections.length === 0 && <p className="muted">Su empresa aún no tiene galerías de avatares disponibles.</p>}
+      {opts?.collections.map((c) => (
+        <div key={c.id}>
+          <h4>{c.name}</h4>
+          <div className="picker">
+            {c.avatars.map((a) => (
+              <button key={a.id} type="button" className={opts.selected_id === a.id ? 'sel' : ''} title={a.name} aria-pressed={opts.selected_id === a.id} disabled={busy} onClick={() => pick(a.id)}>
+                <img src={a.url} alt={a.name} />
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PasswordTab({ onClose }: { onClose: () => void }) {
   const [v, setV] = useState({ current_password: '', password: '', password_confirmation: '' });
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -198,14 +273,12 @@ function Account({ onClose }: { onClose: () => void }) {
   );
 
   return (
-    <Modal title="Cambiar contraseña" onClose={onClose}>
-      <form onSubmit={submit} className="form one">
-        {f('current_password', 'Contraseña actual')}
-        {f('password', 'Nueva contraseña (mín. 10, letras y números)')}
-        {f('password_confirmation', 'Repita la nueva contraseña')}
-        {msg && <p className={msg.ok ? 'ok' : 'error'}>{msg.text}</p>}
-        <div className="buttons"><button type="button" onClick={onClose}>Cerrar</button><button className="primary">Cambiar</button></div>
-      </form>
-    </Modal>
+    <form onSubmit={submit} className="form one">
+      {f('current_password', 'Contraseña actual')}
+      {f('password', 'Nueva contraseña (mín. 10, letras y números)')}
+      {f('password_confirmation', 'Repita la nueva contraseña')}
+      {msg && <p className={msg.ok ? 'ok' : 'error'}>{msg.text}</p>}
+      <div className="buttons"><button type="button" onClick={onClose}>Cerrar</button><button className="primary">Cambiar</button></div>
+    </form>
   );
 }

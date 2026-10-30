@@ -36,7 +36,7 @@ export async function api<T = any>(method: string, path: string, body?: unknown)
 }
 
 export type Me = {
-  id: string; email: string; is_superadmin: boolean; permissions: string[];
+  id: string; email: string; avatar_url: string | null; is_superadmin: boolean; permissions: string[];
   profiles: { code: string; name: string; scope_type: string; scope_id: string | null }[];
 };
 

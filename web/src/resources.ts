@@ -11,7 +11,7 @@ export type NavItem = { id: string; title: string; perm: string; group: string }
 
 export type Resource = NavItem & {
   path: string;
-  columns: { key: string; label: string; render?: (r: any, refs: Record<string, any[]>) => string }[];
+  columns: { key: string; label: string; avatar?: boolean; render?: (r: any, refs: Record<string, any[]>) => string }[];
   fields: Field[];
   profilesPanel?: boolean;
 };
@@ -80,7 +80,7 @@ export const resources: Resource[] = [
   },
   {
     id: 'users', title: 'Usuarios', path: 'users', perm: 'usuarios', group: 'Administración', profilesPanel: true,
-    columns: [{ key: 'email', label: 'Correo' }, { key: 'organization_id', label: 'Organización', render: orgName }, { key: 'status', label: 'Estado' }, { key: 'last_login_at', label: 'Último acceso', render: (r) => r.last_login_at?.slice(0, 16).replace('T', ' ') ?? '—' }],
+    columns: [{ key: 'email', label: 'Correo', avatar: true }, { key: 'organization_id', label: 'Organización', render: orgName }, { key: 'status', label: 'Estado' }, { key: 'last_login_at', label: 'Último acceso', render: (r) => r.last_login_at?.slice(0, 16).replace('T', ' ') ?? '—' }],
     fields: [
       { ...orgOptional, label: 'Organización principal' }, { key: 'email', label: 'Correo', type: 'email', required: true },
       { key: 'password', label: 'Contraseña', type: 'password', help: 'Mínimo 10 caracteres, con letras y números. En edición, déjela vacía para no cambiarla.' },
@@ -93,4 +93,8 @@ export const resources: Resource[] = [
 export const groupOrder = ['Estructura', 'Personas y proyectos', 'Datos', 'Administración'];
 
 // Pantallas con interfaz propia (no son un CRUD genérico).
-export const pages: NavItem[] = [{ id: 'imports', title: 'Importaciones', perm: 'importaciones', group: 'Datos' }];
+export const pages: NavItem[] = [
+  { id: 'imports', title: 'Importaciones', perm: 'importaciones', group: 'Datos' },
+  { id: 'profiles', title: 'Perfiles', perm: 'perfiles', group: 'Administración' },
+  { id: 'avatar-galleries', title: 'Galerías de avatares', perm: 'avatares', group: 'Administración' },
+];

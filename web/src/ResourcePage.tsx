@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api, ApiError, Me } from './api';
 import type { Field, Resource } from './resources';
 import { ProfilesPanel } from './ProfilesPanel';
+import { Avatar } from './Avatar';
 
 type Page = { data: any[]; current_page: number; last_page: number; total: number };
 
@@ -58,7 +59,11 @@ export function ResourcePage({ res, me }: { res: Resource; me: Me }) {
           <tbody>
             {page?.data.map((r) => (
               <tr key={r.id}>
-                {res.columns.map((c) => <td key={c.key}>{c.render ? c.render(r, refs) : String(r[c.key] ?? '—')}</td>)}
+                {res.columns.map((c) => (
+                  <td key={c.key}>
+                    {c.avatar ? <span className="with-avatar"><Avatar url={r.avatar_url} label={r[c.key]} size={28} />{c.render ? c.render(r, refs) : String(r[c.key] ?? '—')}</span> : c.render ? c.render(r, refs) : String(r[c.key] ?? '—')}
+                  </td>
+                ))}
                 <td className="actions">
                   {res.profilesPanel && can(me, res.perm, 'ver') && <button onClick={() => setProfilesFor(r)}>Perfiles</button>}
                   {can(me, res.perm, 'editar') && <button onClick={() => setEditing({ row: r })}>Editar</button>}

@@ -35,6 +35,16 @@ y Laravel la sirve en `/`. Para modificarla: `cd web && npm install && npm run b
 | DELETE | `/api/v1/users/{id}/profiles/{asignación}` | `usuarios.editar` |
 | POST | `/api/v1/me/password` | token |
 
+### Perfiles, avatares y galerías
+- `GET /permissions`, `POST|PUT|DELETE /profiles[/{id}]` (`perfiles.*`): perfiles propios del tenant; los de sistema son de solo lectura; solo se
+  pueden incluir permisos que quien edita ya posee; un perfil asignado a usuarios no se elimina.
+- Mi avatar (cualquier usuario): `GET|PUT|POST|DELETE /me/avatar` — elegir de las galerías de su empresa (`avatar_id`), subir foto
+  (JPG/PNG/WebP ≤ 4 MB; se recorta a 256×256 WebP y se eliminan los metadatos) o quitarlo. `avatar_url` viene en `/me` y en `/users`.
+- Galerías (`avatares.*`, escribir exige alcance global): `/avatar-collections` (CRUD, `is_global` u `organization_ids` para asignarlas a
+  empresas), `POST /avatar-collections/{id}/avatars` (`files[]`, JPG/PNG/WebP/SVG ≤ 1 MB), `PUT|DELETE /avatars/{id}`.
+  Las colecciones del sistema («Clásicos») no se editan. Las imágenes viven en disco privado y se sirven con URL firmada
+  (`/api/v1/media/...`) con CSP `sandbox`, de modo que un SVG no puede ejecutar código. Requiere `php-gd`.
+
 ### Importador universal (Excel / CSV)
 `.xlsx` o `.csv` (`;` `,` o tabulador; UTF-8 o Windows-1252), máx. 5 MB y 5.000 filas. Flujo en la web: *Datos → Importaciones*.
 Por API: `GET imports/targets` → `POST imports` (multipart `target`, `file`, `template_id?`; devuelve columnas, vista previa y mapeo sugerido)

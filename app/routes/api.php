@@ -2,6 +2,10 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AreaController;
+use App\Http\Controllers\Api\V1\AvatarAdminController;
+use App\Http\Controllers\Api\V1\AvatarController;
+use App\Http\Controllers\Api\V1\MediaController;
+use App\Http\Controllers\Api\V1\ProfileAdminController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\ImportController;
@@ -15,12 +19,35 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
+    // Imágenes de avatar: URL firmada (un <img> no puede enviar el token)
+    Route::get('media/avatars/{avatar}', [MediaController::class, 'avatar'])->name('media.avatar')->middleware('signed:relative');
+    Route::get('media/users/{user}/avatar', [MediaController::class, 'userAvatar'])->name('media.user-avatar')->middleware('signed:relative');
+
     Route::middleware(['auth:sanctum', 'active'])->group(function () {
         Route::post('auth/logout', [AuthController::class, 'logout']);
         Route::get('me', [AuthController::class, 'me']);
         Route::post('me/password', [AuthController::class, 'changePassword']);
 
         Route::get('profiles', [UserProfileController::class, 'profiles'])->middleware('permission:perfiles.ver');
+        Route::get('permissions', [ProfileAdminController::class, 'permissions'])->middleware('permission:perfiles.ver');
+        Route::post('profiles', [ProfileAdminController::class, 'store'])->middleware('permission:perfiles.crear');
+        Route::put('profiles/{id}', [ProfileAdminController::class, 'update'])->middleware('permission:perfiles.editar');
+        Route::delete('profiles/{id}', [ProfileAdminController::class, 'destroy'])->middleware('permission:perfiles.eliminar');
+
+        // Mi avatar (cualquier usuario autenticado)
+        Route::get('me/avatar', [AvatarController::class, 'options']);
+        Route::put('me/avatar', [AvatarController::class, 'select']);
+        Route::post('me/avatar', [AvatarController::class, 'upload']);
+        Route::delete('me/avatar', [AvatarController::class, 'remove']);
+
+        // Galerías de avatares y su asignación a empresas
+        Route::get('avatar-collections', [AvatarAdminController::class, 'index'])->middleware('permission:avatares.ver');
+        Route::post('avatar-collections', [AvatarAdminController::class, 'store'])->middleware('permission:avatares.crear');
+        Route::put('avatar-collections/{id}', [AvatarAdminController::class, 'update'])->middleware('permission:avatares.editar');
+        Route::delete('avatar-collections/{id}', [AvatarAdminController::class, 'destroy'])->middleware('permission:avatares.eliminar');
+        Route::post('avatar-collections/{id}/avatars', [AvatarAdminController::class, 'addAvatars'])->middleware('permission:avatares.crear');
+        Route::put('avatars/{id}', [AvatarAdminController::class, 'updateAvatar'])->middleware('permission:avatares.editar');
+        Route::delete('avatars/{id}', [AvatarAdminController::class, 'destroyAvatar'])->middleware('permission:avatares.eliminar');
         Route::get('users/{userId}/profiles', [UserProfileController::class, 'index'])->middleware('permission:usuarios.ver');
         Route::post('users/{userId}/profiles', [UserProfileController::class, 'assign'])->middleware('permission:usuarios.editar');
         Route::delete('users/{userId}/profiles/{assignmentId}', [UserProfileController::class, 'revoke'])->middleware('permission:usuarios.editar');

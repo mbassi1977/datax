@@ -15,6 +15,7 @@ class DemoSeeder extends Seeder
     public function run(): void
     {
         $this->call(SecuritySeeder::class);
+        $this->call(AvatarSeeder::class);
 
         $tenant = Tenant::firstOrCreate(['slug' => 'demo'], ['name' => 'Demo HRX']);
         $org = Organization::firstOrCreate(

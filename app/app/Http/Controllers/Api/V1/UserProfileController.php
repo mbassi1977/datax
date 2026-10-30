@@ -22,13 +22,14 @@ class UserProfileController extends Controller
         $profiles = DB::table('security.profiles')
             ->where(fn ($q) => $q->whereNull('tenant_id')->orWhere('tenant_id', $request->user()->tenant_id))
             ->orderBy('name')->get(['id', 'code', 'name', 'is_system']);
+        $counts = DB::table('security.user_profiles')->selectRaw('profile_id, count(*) as n')->groupBy('profile_id')->pluck('n', 'profile_id');
 
         $perms = DB::table('security.profile_permissions as pp')
             ->join('security.permissions as pm', 'pm.id', '=', 'pp.permission_id')
             ->whereIn('pp.profile_id', $profiles->pluck('id'))
             ->get(['pp.profile_id', 'pm.code'])->groupBy('profile_id');
 
-        return response()->json($profiles->map(fn ($p) => (array) $p + ['permissions' => ($perms[$p->id] ?? collect())->pluck('code')->sort()->values()]));
+        return response()->json($profiles->map(fn ($p) => (array) $p + ['users_count' => (int) ($counts[$p->id] ?? 0), 'permissions' => ($perms[$p->id] ?? collect())->pluck('code')->sort()->values()]));
     }
 
     public function index(Request $request, string $userId): JsonResponse

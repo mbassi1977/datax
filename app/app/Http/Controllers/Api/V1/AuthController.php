@@ -75,6 +75,7 @@ class AuthController extends Controller
             'id' => $user->id,
             'email' => $user->email,
             'tenant_id' => $user->tenant_id,
+            'avatar_url' => $user->avatar_url,
             'is_superadmin' => $user->is_superadmin,
             'profiles' => DB::table('security.user_profiles as up')
                 ->join('security.profiles as p', 'p.id', '=', 'up.profile_id')
