@@ -7,11 +7,11 @@ import { Question, resultLabels, severityLabels, statusClass, statusLabels, Stru
 type Audit = {
   id: string; title: string; status: string; template_name: string; template_version: number; pass_threshold: number; organization: string | null; branch: string | null; project: string | null;
   auditor: string | null; auditor_id: string; reviewer: string | null; scheduled_for: string | null; due_on: string | null; started_at: string | null; submitted_at: string | null; reviewed_at: string | null;
-  review_notes: string | null; score: number | null; result: string | null; critical_failures: number; started_lat: number | null; started_lng: number | null; submitted_lat: number | null; submitted_lng: number | null;
+  review_notes: string | null; score: number | null; result: string | null; scoring_enabled: boolean; critical_failures: number; started_lat: number | null; started_lng: number | null; submitted_lat: number | null; submitted_lng: number | null;
   structure: Structure; answers: Record<string, { value?: unknown; comment?: string | null }>;
   evidences: { id: string; question_id: string | null; kind: string; url: string; latitude: number | null; longitude: number | null; taken_at: string | null }[];
   findings: { id: string; question_text: string | null; description: string; severity: keyof typeof severityLabels; status: string; source: string }[];
-  evaluation: { sections: { id: string; title: string; score: number | null; answered: number; total: number }[]; failed: string[]; score: number | null };
+  evaluation: { sections: { id: string; title: string; score: number | null; answered: number; total: number; findings: number }[]; findings: string[]; failed: string[]; score: number | null; visible: Record<string, boolean>; findings_by_severity: Record<string, number>; progress: { answered: number; total: number } };
 };
 
 const show = (q: Question, v: unknown): string => {
@@ -62,9 +62,20 @@ export function AuditReview({ me, audit: a, reload, back }: { me: Me; audit: Aud
         {a.reviewer && <div><span className="muted">Revisada por</span><br />{a.reviewer} · {formatDateTime(a.reviewed_at)}</div>}
       </div>
 
-      {a.result && (
+      {!a.scoring_enabled && ['submitted', 'approved', 'returned'].includes(a.status) && (
         <div className="card pad scoreboard">
-          <div className={`big-score ${a.result}`}><strong>{a.score}%</strong><span>{resultLabels[a.result]}</span><small className="muted">mínimo {a.pass_threshold}%</small>{a.critical_failures > 0 && <small className="error">{a.critical_failures} falla(s) crítica(s)</small>}</div>
+          <div className={`big-score ${a.findings.length ? 'fail' : 'pass'}`}><strong>{a.findings.length}</strong><span>{a.findings.length === 1 ? 'hallazgo' : 'hallazgos'}</span><small className="muted">{a.evaluation.progress.answered} de {a.evaluation.progress.total} preguntas</small></div>
+          <div className="secbars">
+            {(['critical', 'high', 'medium', 'low'] as const).map((k) => a.evaluation.findings_by_severity[k] > 0 && <div key={k}><div className="lbl"><span>Severidad {severityLabels[k].toLowerCase()}</span><span>{a.evaluation.findings_by_severity[k]}</span></div></div>)}
+            {a.findings.length === 0 && <span className="muted">No se registraron hallazgos.</span>}
+            {a.evaluation.sections.map((s) => <div key={s.id}><div className="lbl"><span>{s.title}</span><span>{s.findings > 0 ? `${s.findings} hallazgo(s)` : 'sin hallazgos'} · {s.answered}/{s.total}</span></div></div>)}
+          </div>
+        </div>
+      )}
+
+      {a.scoring_enabled && a.result && (
+        <div className="card pad scoreboard">
+          <div className={`big-score ${a.result}`}><strong>{a.score}%</strong><span>{resultLabels[a.result]}</span><small className="muted">mínimo {a.pass_threshold}%</small></div>
           <div className="secbars">
             {a.evaluation.sections.map((s) => (
               <div key={s.id}><div className="lbl"><span>{s.title}</span><span>{s.score === null ? 'sin puntaje' : `${s.score}%`}</span></div><div className="bar-track"><div className={`bar-fill ${(s.score ?? 100) < 50 ? 'bad' : (s.score ?? 100) < a.pass_threshold ? 'warn' : ''}`} style={{ width: `${s.score ?? 0}%` }} /></div></div>
@@ -81,15 +92,14 @@ export function AuditReview({ me, audit: a, reload, back }: { me: Me; audit: Aud
               {s.questions.map((q) => {
                 const ans = a.answers[q.id];
                 const ev = evOf(q.id);
-                const hidden = q.show_if && ans === undefined && ev.length === 0;
-                if (hidden) return null;
+                if (a.evaluation.visible[q.id] === false) return null;   // se saltó por el árbol de decisiones
                 return (
                   <tr key={q.id} className={failed.has(q.id) ? 'failed-row' : ''}>
-                    <td className="q"><strong>{q.text}</strong>{q.critical && <span className="badge failed">Crítica</span>}<br /><small className="muted">{typeLabels[q.type]}</small></td>
+                    <td className="q"><strong>{q.text}</strong><br /><small className="muted">{typeLabels[q.type]}</small></td>
                     <td className="a">
                       {q.type === 'photo' || q.type === 'signature' ? <span className="muted">{ev.length ? `${ev.length} ${q.type === 'photo' ? 'foto(s)' : 'firma'}` : 'Sin evidencia'}</span> : <strong>{show(q, ans?.value)}</strong>}
                       {ans?.comment && <div className="muted">💬 {ans.comment}</div>}
-                      {failed.has(q.id) && <span className="badge failed">No cumple</span>}
+                      {failed.has(q.id) && <span className="badge failed">Hallazgo</span>}
                       {ev.length > 0 && <div className="thumbs">{ev.map((e) => <figure key={e.id}><img src={e.url} alt="Evidencia" onClick={() => setZoom(e.url)} /></figure>)}</div>}
                     </td>
                   </tr>

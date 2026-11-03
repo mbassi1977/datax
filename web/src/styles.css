@@ -212,3 +212,10 @@ tr.clickable { cursor: pointer; } tr.clickable:hover td { background: var(--bg);
 .secbars { display: flex; flex-direction: column; gap: .7rem; } .lbl { display: flex; justify-content: space-between; font-size: .9rem; } .bar-track { height: 10px; border-radius: 999px; background: var(--border); overflow: hidden; } .bar-fill { height: 100%; background: var(--ok); } .bar-fill.warn { background: #d98e04; } .bar-fill.bad { background: var(--danger); }
 table.answers td { white-space: normal; vertical-align: top; } table.answers td.q { width: 45%; } tr.failed-row td { background: color-mix(in srgb, var(--danger) 8%, transparent); }
 @media (max-width: 760px) { .scoreboard { grid-template-columns: 1fr; } }
+
+/* Árbol de decisiones */
+.cond { border: 1px dashed var(--border); border-radius: 8px; padding: .6rem .8rem; background: color-mix(in srgb, var(--primary) 4%, transparent); margin: .5rem 0; }
+.cond-head { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; } .cond-head select { width: auto; }
+.cond-body { margin-top: .5rem; display: flex; flex-direction: column; gap: .5rem; } .cond-row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; } .cond-row select { width: auto; max-width: 320px; }
+.cond-multi { display: inline-flex; gap: .8rem; flex-wrap: wrap; } .cond-actions { display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; } .cond-sentence { margin: 0; font-size: .92rem; }
+.logic ul { margin: .6rem 0 0; padding-left: 1.2rem; } .logic li { margin: .4rem 0; }

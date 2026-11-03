@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, ApiError, Me, upload } from './api';
 import { Modal } from './ResourcePage';
-import { Question, Section, severityLabels, Structure, typeLabels } from './audit';
+import { Question, Section, severityLabels, Structure, typeLabels, visibility } from './audit';
 
 type Ans = { value?: unknown; comment?: string | null };
 type Evidence = { id: string; question_id: string | null; kind: 'photo' | 'signature'; url: string; caption: string | null };
@@ -77,12 +77,9 @@ export function AuditRun({ audit: initial, reload, back }: { me: Me; audit: Audi
     persist(); setSave('saving'); setMissing((m) => m.filter((x) => x.question_id !== qid)); schedule();
   };
 
-  const visible = useCallback((q: Question) => {
-    const c = q.show_if;
-    if (!c) return true;
-    const v = answers[c.question]?.value;
-    return Array.isArray(v) ? v.includes(c.equals) : v === c.equals;
-  }, [answers]);
+  // Árbol de decisiones: qué preguntas aplican según lo respondido (mismo cálculo que el servidor).
+  const vis = useMemo(() => visibility(initial.structure, answers), [initial.structure, answers]);
+  const visible = useCallback((q: Question) => vis[q.id] !== false, [vis]);
 
   const evFor = (qid: string, kind?: string) => evidences.filter((e) => e.question_id === qid && (!kind || e.kind === kind));
   const answered = useCallback((q: Question) => {
@@ -172,7 +169,7 @@ export function AuditRun({ audit: initial, reload, back }: { me: Me; audit: Audi
             <h2>{s.title}</h2>
             {qs.map((q, i) => (
               <div key={q.id} id={`q-${q.id}`} className={`runq ${missingFor(q.id).length ? 'miss' : ''}`}>
-                <div className="qt"><span className="qnum">{i + 1}</span><div><strong>{q.text}</strong>{q.required && <span className="req"> *</span>}{q.critical && <span className="badge failed">Crítica</span>}{q.help && <div className="muted">{q.help}</div>}</div></div>
+                <div className="qt"><span className="qnum">{i + 1}</span><div><strong>{q.text}</strong>{q.required && <span className="req"> *</span>}{q.help && <div className="muted">{q.help}</div>}</div></div>
                 <Field q={q} ans={answers[q.id]} onChange={(v) => setAnswer(q.id, { value: v })} />
                 {q.type === 'photo' || (q.evidence.photo !== 'none' && q.type !== 'signature') || q.type === 'signature' ? (
                   <Evidence q={q} items={evFor(q.id)} disabled={!running} onAdd={(f, k) => addEvidence(q.id, f, k)} onRemove={removeEvidence} />

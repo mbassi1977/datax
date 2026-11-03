@@ -57,12 +57,12 @@ class FieldAuditTest extends TestCase
     {
         return ['sections' => [
             ['id' => 's1', 'title' => 'Local', 'questions' => [
-                ['id' => 'q1', 'text' => 'Extintor vigente', 'type' => 'yes_no', 'critical' => true, 'evidence' => ['photo' => 'on_fail', 'comment_on_fail' => true]],
+                ['id' => 'q1', 'text' => 'Extintor vigente', 'type' => 'yes_no', 'finding_on' => ['no'], 'severity' => 'critical', 'evidence' => ['photo' => 'on_fail', 'comment_on_fail' => true]],
                 ['id' => 'q2', 'text' => 'Orden y limpieza', 'type' => 'scale'],
                 ['id' => 'q3', 'text' => 'Foto de la fachada', 'type' => 'photo'],
             ]],
             ['id' => 's2', 'title' => 'Atención', 'questions' => [
-                ['id' => 'q4', 'text' => 'Saludo al cliente', 'type' => 'choice', 'options' => [['id' => 'a', 'label' => 'Siempre', 'score' => 100], ['id' => 'b', 'label' => 'Nunca', 'score' => 0]]],
+                ['id' => 'q4', 'text' => 'Saludo al cliente', 'type' => 'choice', 'options' => [['id' => 'a', 'label' => 'Siempre', 'score' => 100], ['id' => 'b', 'label' => 'Nunca', 'score' => 0, 'finding' => true]]],
                 ['id' => 'q5', 'text' => 'Observaciones', 'type' => 'text', 'required' => false],
             ]],
         ]];
@@ -229,8 +229,8 @@ class FieldAuditTest extends TestCase
 
         // envío: puntaje, resultado y hallazgos automáticos
         $sub = $this->postJson("/api/v1/audits/{$id}/submit", ['lat' => -33.4, 'lng' => -70.6])->assertOk();
-        $this->assertSame(['submitted', 'fail', 1], [$sub->json('status'), $sub->json('result'), $sub->json('critical_failures')]);   // crítica fallida => reprueba
-        $this->assertEquals(37.5, $sub->json('evaluation.sections.0.score'));                                                       // (extintor No = 0 + escala 4/5 = 75) / 2
+        $this->assertSame(['submitted', null, 1], [$sub->json('status'), $sub->json('result'), $sub->json('critical_failures')]);   // sin puntaje no hay resultado; 1 hallazgo crítico
+        $this->assertSame([null, 1], [$sub->json('score'), $sub->json('evaluation.findings_by_severity.critical')]);
         $finding = collect($sub->json('findings'))->first();
         $this->assertSame(['critical', 'open', 'auto', 'q1'], [$finding['severity'], $finding['status'], $finding['source'], $finding['question_id']]);
         $this->assertStringContainsString('vencido', $finding['description']);
@@ -265,11 +265,72 @@ class FieldAuditTest extends TestCase
         $this->putJson("/api/v1/audits/{$id}/answers", ['answers' => [['question_id' => 'q1', 'value' => 'yes'], ['question_id' => 'q2', 'value' => 5], ['question_id' => 'q4', 'value' => 'a']]])->assertOk();
         $this->post("/api/v1/audits/{$id}/evidence", ['file' => $this->png(), 'question_id' => 'q3'], ['Accept' => 'application/json'])->assertCreated();
         $sub = $this->postJson("/api/v1/audits/{$id}/submit")->assertOk();
-        $this->assertEquals(['pass', 100, 0], [$sub->json('result'), $sub->json('score'), $sub->json('critical_failures')]);
+        $this->assertSame([null, null, 0], [$sub->json('result'), $sub->json('score'), $sub->json('critical_failures')]);
         $this->assertCount(0, $sub->json('findings'));                                                                                         // todo cumple: sin hallazgos
 
         $this->postJson("/api/v1/audits/{$id}/approve")->assertStatus(403);                                                                    // no revisa su propio trabajo
         $this->as($this->user('admin'))->postJson("/api/v1/audits/{$id}/approve")->assertOk();
+    }
+
+    public function test_scoring_is_optional_and_enabled_per_template(): void
+    {
+        $admin = $this->user('admin');
+        $auditor = $this->user('auditor', 'organization', $this->a->id);
+        $this->as($admin);
+        $id = $this->postJson('/api/v1/audit-templates', ['name' => 'Con puntaje', 'scoring_enabled' => true, 'pass_threshold' => 70, 'structure' => $this->structure()])->assertCreated()->assertJsonPath('scoring_enabled', true)->json('id');
+        $this->postJson("/api/v1/audit-templates/{$id}/publish")->assertOk();
+        $this->putJson("/api/v1/audit-templates/{$id}", ['scoring_enabled' => false])->assertOk()->assertJsonPath('version', 2);       // cambiar el modo es un cambio de versión
+        $this->putJson("/api/v1/audit-templates/{$id}", ['scoring_enabled' => true])->assertOk()->assertJsonPath('version', 3);
+
+        $run = function (array $answers) use ($admin, $auditor, $id) {
+            $audit = $this->assign($admin, $id, $auditor);
+            $this->as($auditor)->postJson("/api/v1/audits/{$audit}/start")->assertOk();
+            $this->putJson("/api/v1/audits/{$audit}/answers", ['answers' => $answers])->assertOk();
+            $this->post("/api/v1/audits/{$audit}/evidence", ['file' => $this->png(), 'question_id' => 'q3'], ['Accept' => 'application/json'])->assertCreated();
+
+            return $audit;
+        };
+        $good = $run([['question_id' => 'q1', 'value' => 'yes'], ['question_id' => 'q2', 'value' => 5], ['question_id' => 'q4', 'value' => 'a']]);
+        $sub = $this->postJson("/api/v1/audits/{$good}/submit")->assertOk();
+        $this->assertEquals(['pass', 100, true], [$sub->json('result'), $sub->json('score'), $sub->json('scoring_enabled')]);
+
+        $bad = $run([['question_id' => 'q1', 'value' => 'no', 'comment' => 'x'], ['question_id' => 'q2', 'value' => 2], ['question_id' => 'q4', 'value' => 'b']]);
+        $this->post("/api/v1/audits/{$bad}/evidence", ['file' => $this->png(), 'question_id' => 'q1'], ['Accept' => 'application/json'])->assertCreated();
+        $sub = $this->postJson("/api/v1/audits/{$bad}/submit")->assertOk();
+        $this->assertSame('fail', $sub->json('result'));                                                                                // 25% < 70%
+        $this->assertSame(2, collect($sub->json('findings'))->count());                                                                 // extintor y saludo
+    }
+
+    public function test_decision_tree_skips_questions_on_the_server_too(): void
+    {
+        $admin = $this->user('admin');
+        $auditor = $this->user('auditor', 'organization', $this->a->id);
+        $this->as($admin);
+        $tpl = $this->postJson('/api/v1/audit-templates', ['name' => 'Exhibición', 'structure' => ['sections' => [['id' => 's1', 'title' => 'Exhibición', 'questions' => [
+            ['id' => 'q1', 'text' => '¿Tiene exhibición?', 'type' => 'yes_no'],
+            ['id' => 'q2', 'text' => 'Estado de la exhibición', 'type' => 'choice', 'options' => [['id' => 'ok', 'label' => 'Bueno'], ['id' => 'mal', 'label' => 'Malo', 'finding' => true]],
+                'show_if' => ['conditions' => [['question' => 'q1', 'op' => 'equals', 'value' => 'yes']]]],
+        ]]]]])->assertCreated()->json('id');
+        $this->postJson("/api/v1/audit-templates/{$tpl}/publish")->assertOk();
+
+        // sin exhibición: la pregunta 2 se salta y se puede enviar
+        $a1 = $this->assign($admin, $tpl, $auditor);
+        $this->as($auditor)->postJson("/api/v1/audits/{$a1}/start")->assertOk();
+        $r = $this->putJson("/api/v1/audits/{$a1}/answers", ['answers' => [['question_id' => 'q1', 'value' => 'no']]])->assertOk();
+        $this->assertSame([true, false], [$r->json('evaluation.visible.q1'), $r->json('evaluation.visible.q2')]);
+        $this->postJson("/api/v1/audits/{$a1}/submit")->assertOk()->assertJsonPath('evaluation.progress.total', 1);
+
+        // con exhibición: pasa a ser obligatoria y su respuesta «Malo» genera hallazgo
+        $a2 = $this->assign($admin, $tpl, $auditor);
+        $this->as($auditor)->postJson("/api/v1/audits/{$a2}/start")->assertOk();
+        $this->putJson("/api/v1/audits/{$a2}/answers", ['answers' => [['question_id' => 'q1', 'value' => 'yes']]])->assertOk();
+        $this->postJson("/api/v1/audits/{$a2}/submit")->assertStatus(422)->assertJsonPath('missing.0.question_id', 'q2');
+        $this->putJson("/api/v1/audits/{$a2}/answers", ['answers' => [['question_id' => 'q2', 'value' => 'mal']]])->assertOk();
+        $sub = $this->postJson("/api/v1/audits/{$a2}/submit")->assertOk();
+        $this->assertCount(1, $sub->json('findings'));
+
+        // un hallazgo ya registrado no se arrastra si la respuesta que lo originó deja de aplicar (cambia la rama)
+        $this->assertSame(0, DB::table('fieldaudit.findings')->where('audit_id', $a1)->count());
     }
 
     // ───────────────────────────── hallazgos ─────────────────────────────

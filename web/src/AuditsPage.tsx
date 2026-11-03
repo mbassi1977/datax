@@ -8,7 +8,7 @@ import { AuditReview } from './AuditReview';
 
 type Row = {
   id: string; title: string; status: string; organization: string | null; branch: string | null; auditor: string | null; auditor_id: string;
-  scheduled_for: string | null; due_on: string | null; score: number | null; result: string | null; critical_failures: number; template_name: string;
+  scheduled_for: string | null; due_on: string | null; score: number | null; result: string | null; scoring_enabled: boolean; findings_count: number; template_name: string;
 };
 type Page = { data: Row[]; current_page: number; last_page: number; total: number };
 
@@ -49,7 +49,7 @@ function List({ me, mine }: { me: Me; mine: boolean }) {
       {error && <p className="error">{error}</p>}
       <div className="card table-wrap">
         <table>
-          <thead><tr><th>Auditoría</th><th>Lugar</th>{!mine && <th>Auditor</th>}<th>Programada</th><th>Estado</th><th>Resultado</th></tr></thead>
+          <thead><tr><th>Auditoría</th><th>Lugar</th>{!mine && <th>Auditor</th>}<th>Programada</th><th>Estado</th><th>Hallazgos / resultado</th></tr></thead>
           <tbody>
             {page?.data.map((a) => (
               <tr key={a.id} className="clickable" onClick={() => (location.hash = `#/${base}/${a.id}`)}>
@@ -58,7 +58,7 @@ function List({ me, mine }: { me: Me; mine: boolean }) {
                 {!mine && <td>{a.auditor}</td>}
                 <td>{a.scheduled_for ?? '—'}{a.due_on && <><br /><small className="muted">límite {a.due_on}</small></>}</td>
                 <td><span className={`badge ${statusClass(a.status)}`}>{statusLabels[a.status]}</span></td>
-                <td>{a.result ? <><span className={`badge ${a.result === 'pass' ? 'completed' : 'failed'}`}>{resultLabels[a.result]}</span> <small>{a.score}%</small></> : '—'}</td>
+                <td>{['submitted', 'approved', 'returned'].includes(a.status) ? <>{a.findings_count > 0 ? <span className="badge failed">{a.findings_count} hallazgo{a.findings_count === 1 ? '' : 's'}</span> : <span className="badge completed">Sin hallazgos</span>}{a.scoring_enabled && a.result && <> <span className={`badge ${a.result === 'pass' ? 'completed' : 'failed'}`}>{resultLabels[a.result]}</span> <small>{a.score}%</small></>}</> : '—'}</td>
               </tr>
             ))}
             {page && page.data.length === 0 && <tr><td colSpan={6} className="muted">{mine ? 'No tiene auditorías en esta vista.' : 'Sin auditorías para ese filtro.'}</td></tr>}

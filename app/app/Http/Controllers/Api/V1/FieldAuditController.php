@@ -49,7 +49,8 @@ class FieldAuditController extends Controller
             ->when($request->filled('to'), fn ($q) => $q->where('scheduled_for', '<=', $request->query('to')))
             ->when($request->filled('q'), fn ($q) => $q->where('title', 'ilike', '%'.$request->query('q').'%'))
             ->orderByRaw("case status when 'in_progress' then 0 when 'returned' then 1 when 'scheduled' then 2 when 'submitted' then 3 else 4 end")
-            ->orderByDesc('scheduled_for')->paginate(30, ['id', 'title', 'status', 'organization_id', 'branch_id', 'auditor_id', 'scheduled_for', 'due_on', 'score', 'result', 'critical_failures', 'submitted_at', 'template_name']);
+            ->orderByDesc('scheduled_for')->paginate(30, ['id', 'title', 'status', 'organization_id', 'branch_id', 'auditor_id', 'scheduled_for', 'due_on', 'score', 'result', 'scoring_enabled', 'critical_failures', 'submitted_at', 'template_name',
+                DB::raw('(select count(*) from fieldaudit.findings f where f.audit_id = fieldaudit.audits.id and f.deleted_at is null) as findings_count')]);
 
         $orgs = DB::table('core.organizations')->whereIn('id', $page->pluck('organization_id'))->pluck('legal_name', 'id');
         $branches = DB::table('core.branches')->whereIn('id', $page->pluck('branch_id')->filter())->pluck('name', 'id');
@@ -95,7 +96,7 @@ class FieldAuditController extends Controller
         $place = ($data['branch_id'] ?? null) ? DB::table('core.branches')->where('id', $data['branch_id'])->value('name') : DB::table('core.organizations')->where('id', $data['organization_id'])->value('legal_name');
         $audit = FieldAudit::create([
             'tenant_id' => $user->tenant_id, 'template_id' => $template->id, 'template_name' => $template->name, 'template_version' => $template->version,
-            'pass_threshold' => $template->pass_threshold, 'structure' => $template->structure,                           // copia: editar la plantilla no la altera
+            'pass_threshold' => $template->pass_threshold, 'scoring_enabled' => (bool) $template->scoring_enabled, 'structure' => $template->structure,                           // copia: editar la plantilla no la altera
             'title' => $data['title'] ?? "{$template->name} · {$place}", 'organization_id' => $data['organization_id'], 'branch_id' => $data['branch_id'] ?? null,
             'project_id' => $data['project_id'] ?? null, 'auditor_id' => $data['auditor_id'], 'scheduled_for' => $data['scheduled_for'] ?? now()->toDateString(),
             'due_on' => $data['due_on'] ?? null, 'status' => 'scheduled', 'created_by' => $user->id,
@@ -338,14 +339,14 @@ class FieldAuditController extends Controller
             $counts[$e->question_id][$e->kind] = ($counts[$e->question_id][$e->kind] ?? 0) + 1;
         }
 
-        return Scorer::evaluate($audit->structure, $answers, $counts, $audit->pass_threshold);
+        return Scorer::evaluate($audit->structure, $answers, $counts, (bool) $audit->scoring_enabled, $audit->pass_threshold);
     }
 
     private function createFindings(FieldAudit $audit, array $eval, string $userId): void
     {
         $questions = Scorer::questions($audit->structure);
         $answers = FieldAuditAnswer::where('audit_id', $audit->id)->get()->keyBy('question_id');
-        foreach ($eval['failed'] as $qid) {
+        foreach ($eval['findings'] as $qid) {
             $q = $questions[$qid];
             FieldAuditFinding::firstOrCreate(['audit_id' => $audit->id, 'question_id' => $qid, 'source' => 'auto'], [
                 'tenant_id' => $audit->tenant_id, 'section_title' => $q['_section_title'], 'question_text' => $q['text'], 'severity' => $q['severity'],

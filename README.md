@@ -37,12 +37,19 @@ y Laravel la sirve en `/`. Para modificarla: `cd web && npm install && npm run b
 
 ### Auditoría en terreno
 Esquema `fieldaudit`. Flujo: **plantilla** (borrador → publicada → archivada; secciones y preguntas de 10 tipos: Sí/No/N/A, escala, selección única o
-múltiple, número, texto, fecha, foto, firma, GPS; condicionales «mostrar si…», preguntas críticas, reglas de foto/comentario si falla, puntajes por opción)
-→ **asignación** a un auditor para una empresa/local (guarda una copia de la plantilla: editarla después no altera lo asignado) → **ejecución**
-(`start` → respuestas en lote idempotentes `PUT audits/{id}/answers` con `client_updated_at` → evidencias `POST audits/{id}/evidence` con `client_id`
-→ `submit`) → **revisión** (`approve` / `return`; nunca el propio auditor) → **hallazgos** con plan de acción.
-Puntaje: Sí=100/No=0 (N/A se excluye), escala proporcional, opciones con puntaje; una pregunta falla bajo 50; sección = promedio ponderado; total = promedio
-ponderado de secciones; una falla crítica reprueba la auditoría sin importar el puntaje. Al enviar se generan hallazgos por cada pregunta fallida.
+múltiple, número, texto, fecha, foto, firma, GPS) → **asignación** a un auditor para una empresa/local (guarda una copia de la plantilla: editarla después no
+altera lo asignado) → **ejecución** (`start` → respuestas en lote idempotentes `PUT audits/{id}/answers` con `client_updated_at` → evidencias
+`POST audits/{id}/evidence` con `client_id` → `submit`) → **revisión** (`approve` / `return`; nunca el propio auditor) → **hallazgos** con plan de acción.
+
+*Levantar información, no puntuar.* El puntaje es opcional (`scoring_enabled` en la plantilla, apagado por defecto). Lo que sí se detecta son los
+**hallazgos**: cada pregunta define qué respuesta es un problema (yes_no: Sí/No/N/A marcadas; escala: nota ≤ umbral; selección: opciones marcadas; número: fuera del
+rango aceptable) y su **severidad** (baja/media/alta/crítica). Puede exigir foto y/o comentario cuando hay hallazgo. Al enviar, cada hallazgo se registra con su plan de acción.
+Con puntaje activado además se calcula: Sí=100/No=0 (N/A excluido), escala proporcional, opciones con puntaje, promedio ponderado por pregunta y sección, y resultado vs. mínimo.
+
+*Árbol de decisiones.* Una sección o pregunta puede llevar `show_if: {mode: all|any, conditions: [{question, op: equals|not_equals|any_of, value}]}`.
+Solo depende de preguntas anteriores; mientras la pregunta de la que depende no esté respondida (o esté oculta) no se muestra. Lo oculto no es obligatorio, no puntúa
+ni genera hallazgos (el servidor y la interfaz calculan lo mismo).
+
 Permisos: `plantillas_auditoria.*` (escribir exige alcance global), `auditorias.ver|crear|editar|eliminar|ejecutar|aprobar`, `hallazgos.*`; el perfil de sistema
 **Auditor en terreno** puede ejecutar. Quien no puede asignar ni aprobar solo ve sus auditorías. Endpoints: `audit-templates`, `audits`, `audits/auditors`, `findings`.
 
