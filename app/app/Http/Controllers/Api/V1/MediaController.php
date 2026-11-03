@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\Avatar;
+use App\Models\FieldAuditEvidence;
 use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
@@ -25,6 +26,13 @@ class MediaController extends Controller
         abort_unless($u->avatar_path, 404);
 
         return $this->file($u->avatar_path, 'image/webp');
+    }
+
+    public function auditEvidence(string $evidence): Response
+    {
+        $e = FieldAuditEvidence::findOrFail($evidence);
+
+        return $this->file($e->path, $e->mime);
     }
 
     public function logo(string $setting): Response

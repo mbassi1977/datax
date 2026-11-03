@@ -12,6 +12,9 @@ use App\Http\Controllers\Api\V1\ProfileAdminController;
 use App\Http\Controllers\Api\V1\SettingsController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\CostCenterController;
+use App\Http\Controllers\Api\V1\FieldAuditController;
+use App\Http\Controllers\Api\V1\FieldAuditFindingController;
+use App\Http\Controllers\Api\V1\FieldAuditTemplateController;
 use App\Http\Controllers\Api\V1\HoldingController;
 use App\Http\Controllers\Api\V1\ImportController;
 use App\Http\Controllers\Api\V1\OrganizationController;
@@ -27,6 +30,7 @@ Route::prefix('v1')->group(function () {
 
     // Imágenes de avatar: URL firmada (un <img> no puede enviar el token)
     Route::get('media/avatars/{avatar}', [MediaController::class, 'avatar'])->name('media.avatar')->middleware('signed:relative');
+    Route::get('media/audit-evidence/{evidence}', [MediaController::class, 'auditEvidence'])->name('media.audit-evidence')->middleware('signed:relative');
     Route::get('media/logos/{setting}', [MediaController::class, 'logo'])->name('media.logo')->middleware('signed:relative');
     Route::get('media/users/{user}/avatar', [MediaController::class, 'userAvatar'])->name('media.user-avatar')->middleware('signed:relative');
 
@@ -58,6 +62,35 @@ Route::prefix('v1')->group(function () {
         Route::put('settings', [SettingsController::class, 'update'])->middleware('permission:configuracion.editar');
         Route::post('settings/logo', [SettingsController::class, 'uploadLogo'])->middleware('permission:configuracion.editar');
         Route::delete('settings/logo', [SettingsController::class, 'deleteLogo'])->middleware('permission:configuracion.editar');
+
+        // Auditoría en terreno: plantillas, auditorías, hallazgos
+        Route::get('audit-templates', [FieldAuditTemplateController::class, 'index'])->middleware('permission:plantillas_auditoria.ver');
+        Route::post('audit-templates', [FieldAuditTemplateController::class, 'store'])->middleware('permission:plantillas_auditoria.crear');
+        Route::get('audit-templates/{id}', [FieldAuditTemplateController::class, 'show'])->middleware('permission:plantillas_auditoria.ver');
+        Route::put('audit-templates/{id}', [FieldAuditTemplateController::class, 'update'])->middleware('permission:plantillas_auditoria.editar');
+        Route::delete('audit-templates/{id}', [FieldAuditTemplateController::class, 'destroy'])->middleware('permission:plantillas_auditoria.eliminar');
+        Route::post('audit-templates/{id}/publish', [FieldAuditTemplateController::class, 'publish'])->middleware('permission:plantillas_auditoria.editar');
+        Route::post('audit-templates/{id}/archive', [FieldAuditTemplateController::class, 'archive'])->middleware('permission:plantillas_auditoria.editar');
+        Route::post('audit-templates/{id}/restore', [FieldAuditTemplateController::class, 'restore'])->middleware('permission:plantillas_auditoria.editar');
+        Route::post('audit-templates/{id}/duplicate', [FieldAuditTemplateController::class, 'duplicate'])->middleware('permission:plantillas_auditoria.crear');
+
+        Route::get('audits', [FieldAuditController::class, 'index'])->middleware('permission:auditorias.ver');
+        Route::post('audits', [FieldAuditController::class, 'store'])->middleware('permission:auditorias.crear');
+        Route::get('audits/{id}', [FieldAuditController::class, 'show'])->middleware('permission:auditorias.ver');
+        Route::put('audits/{id}', [FieldAuditController::class, 'update'])->middleware('permission:auditorias.editar');
+        Route::post('audits/{id}/cancel', [FieldAuditController::class, 'cancel'])->middleware('permission:auditorias.eliminar');
+        Route::post('audits/{id}/start', [FieldAuditController::class, 'start'])->middleware('permission:auditorias.ejecutar');
+        Route::put('audits/{id}/answers', [FieldAuditController::class, 'saveAnswers'])->middleware('permission:auditorias.ejecutar');
+        Route::post('audits/{id}/evidence', [FieldAuditController::class, 'uploadEvidence'])->middleware('permission:auditorias.ejecutar');
+        Route::delete('audits/{id}/evidence/{evidenceId}', [FieldAuditController::class, 'deleteEvidence'])->middleware('permission:auditorias.ejecutar');
+        Route::post('audits/{id}/submit', [FieldAuditController::class, 'submit'])->middleware('permission:auditorias.ejecutar');
+        Route::post('audits/{id}/approve', [FieldAuditController::class, 'approve'])->middleware('permission:auditorias.aprobar');
+        Route::post('audits/{id}/return', [FieldAuditController::class, 'sendBack'])->middleware('permission:auditorias.aprobar');
+
+        Route::get('findings', [FieldAuditFindingController::class, 'index'])->middleware('permission:hallazgos.ver');
+        Route::post('findings', [FieldAuditFindingController::class, 'store'])->middleware('permission:hallazgos.crear');
+        Route::put('findings/{id}', [FieldAuditFindingController::class, 'update'])->middleware('permission:hallazgos.editar');
+        Route::delete('findings/{id}', [FieldAuditFindingController::class, 'destroy'])->middleware('permission:hallazgos.eliminar');
 
         // Holdings
         Route::get('holdings', [HoldingController::class, 'index'])->middleware('permission:holdings.ver');

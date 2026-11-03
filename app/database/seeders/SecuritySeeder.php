@@ -9,8 +9,10 @@ use Illuminate\Support\Str;
 /** Perfiles de sistema y permisos base del núcleo (cap. 13). */
 class SecuritySeeder extends Seeder
 {
-    private array $resources = ['organizaciones', 'configuracion', 'holdings', 'avatares', 'importaciones', 'sucursales', 'areas', 'centros_costo', 'personas', 'proyectos', 'usuarios', 'perfiles', 'catalogos', 'auditoria'];
+    private array $resources = ['organizaciones', 'configuracion', 'holdings', 'avatares', 'importaciones', 'sucursales', 'areas', 'centros_costo', 'personas', 'proyectos', 'usuarios', 'perfiles', 'catalogos', 'auditoria', 'plantillas_auditoria', 'auditorias', 'hallazgos'];
     private array $actions = ['ver', 'crear', 'editar', 'eliminar'];
+    /** Acciones adicionales de algunos módulos. */
+    private array $extraActions = ['auditorias' => ['ejecutar', 'aprobar']];
 
     private array $profiles = [
         'superadmin' => 'Superadministrador',
@@ -21,6 +23,7 @@ class SecuritySeeder extends Seeder
         'evaluador' => 'Evaluador',
         'supervisor' => 'Supervisor',
         'colaborador' => 'Colaborador',
+        'auditor' => 'Auditor en terreno',
     ];
 
     public function run(): void
@@ -28,6 +31,11 @@ class SecuritySeeder extends Seeder
         $permissionIds = [];
         foreach ($this->resources as $resource) {
             foreach ($this->actions as $action) {
+                $code = "$resource.$action";
+                DB::table('security.permissions')->insertOrIgnore(['id' => (string) Str::uuid(), 'code' => $code]);
+                $permissionIds[$code] = DB::table('security.permissions')->where('code', $code)->value('id');
+            }
+            foreach ($this->extraActions[$resource] ?? [] as $action) {
                 $code = "$resource.$action";
                 DB::table('security.permissions')->insertOrIgnore(['id' => (string) Str::uuid(), 'code' => $code]);
                 $permissionIds[$code] = DB::table('security.permissions')->where('code', $code)->value('id');
@@ -48,5 +56,6 @@ class SecuritySeeder extends Seeder
         ]));
         $grant('admin', array_keys($permissionIds));
         $grant('colaborador', ['personas.ver', 'proyectos.ver']);
+        $grant('auditor', ['auditorias.ver', 'auditorias.ejecutar', 'hallazgos.ver']);
     }
 }
