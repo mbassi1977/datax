@@ -63,6 +63,18 @@ class FieldAuditController extends Controller
         return response()->json($this->present($this->findVisible($request, $id)));
     }
 
+    /** Usuarios que pueden ejecutar auditorías en una organización (para elegir al auditor al asignar). */
+    public function auditors(Request $request): JsonResponse
+    {
+        $request->validate(['organization_id' => ['required', 'uuid']]);
+        abort_unless($this->access->canOnOrganization($request->user(), 'auditorias.crear', $request->query('organization_id'), $request->header('X-Profile')), 403, 'Fuera de su alcance.');
+
+        $users = User::where('tenant_id', $request->user()->tenant_id)->where('status', 'active')->orderBy('email')->limit(300)->get()
+            ->filter(fn ($u) => $this->access->canOnOrganization($u, 'auditorias.ejecutar', $request->query('organization_id')));
+
+        return response()->json($users->values()->map(fn ($u) => ['id' => $u->id, 'email' => $u->email]));
+    }
+
     // ───────────────────────────── asignación ─────────────────────────────
 
     public function store(Request $request): JsonResponse

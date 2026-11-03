@@ -35,6 +35,17 @@ y Laravel la sirve en `/`. Para modificarla: `cd web && npm install && npm run b
 | DELETE | `/api/v1/users/{id}/profiles/{asignación}` | `usuarios.editar` |
 | POST | `/api/v1/me/password` | token |
 
+### Auditoría en terreno
+Esquema `fieldaudit`. Flujo: **plantilla** (borrador → publicada → archivada; secciones y preguntas de 10 tipos: Sí/No/N/A, escala, selección única o
+múltiple, número, texto, fecha, foto, firma, GPS; condicionales «mostrar si…», preguntas críticas, reglas de foto/comentario si falla, puntajes por opción)
+→ **asignación** a un auditor para una empresa/local (guarda una copia de la plantilla: editarla después no altera lo asignado) → **ejecución**
+(`start` → respuestas en lote idempotentes `PUT audits/{id}/answers` con `client_updated_at` → evidencias `POST audits/{id}/evidence` con `client_id`
+→ `submit`) → **revisión** (`approve` / `return`; nunca el propio auditor) → **hallazgos** con plan de acción.
+Puntaje: Sí=100/No=0 (N/A se excluye), escala proporcional, opciones con puntaje; una pregunta falla bajo 50; sección = promedio ponderado; total = promedio
+ponderado de secciones; una falla crítica reprueba la auditoría sin importar el puntaje. Al enviar se generan hallazgos por cada pregunta fallida.
+Permisos: `plantillas_auditoria.*` (escribir exige alcance global), `auditorias.ver|crear|editar|eliminar|ejecutar|aprobar`, `hallazgos.*`; el perfil de sistema
+**Auditor en terreno** puede ejecutar. Quien no puede asignar ni aprobar solo ve sus auditorías. Endpoints: `audit-templates`, `audits`, `audits/auditors`, `findings`.
+
 ### Verificación en dos pasos (MFA)
 TOTP estándar (Google/Microsoft Authenticator, Authy, 1Password…). `POST me/mfa/setup` → `POST me/mfa/confirm` (devuelve 10 códigos de
 recuperación, una sola vez) · `DELETE me/mfa` y `POST me/mfa/recovery-codes` exigen contraseña y código. Con MFA activa, `auth/login`

@@ -7,9 +7,9 @@ type Profile = { id: string; code: string; name: string; is_system: boolean; use
 const resourceLabels: Record<string, string> = {
   organizaciones: 'Organizaciones', sucursales: 'Sucursales', areas: 'Áreas', centros_costo: 'Centros de costo', personas: 'Personas',
   proyectos: 'Proyectos', usuarios: 'Usuarios', perfiles: 'Perfiles', catalogos: 'Catálogos', auditoria: 'Auditoría',
-  importaciones: 'Importaciones', avatares: 'Galerías de avatares', holdings: 'Holdings', configuracion: 'Configuración',
+  importaciones: 'Importaciones', avatares: 'Galerías de avatares', holdings: 'Holdings', configuracion: 'Configuración', plantillas_auditoria: 'Plantillas de auditoría', auditorias: 'Auditorías en terreno', hallazgos: 'Hallazgos',
 };
-const actions: [string, string][] = [['ver', 'Ver'], ['crear', 'Crear'], ['editar', 'Editar'], ['eliminar', 'Eliminar']];
+const actions: [string, string][] = [['ver', 'Ver'], ['crear', 'Crear'], ['editar', 'Editar'], ['eliminar', 'Eliminar'], ['ejecutar', 'Ejecutar'], ['aprobar', 'Aprobar']];
 
 export function ProfilesPage({ me }: { me: Me }) {
   const [profiles, setProfiles] = useState<Profile[]>([]);

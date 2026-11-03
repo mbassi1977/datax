@@ -9,6 +9,9 @@ import { AuditPage } from './AuditPage';
 import { SettingsPage } from './SettingsPage';
 import { MfaPanel } from './MfaPanel';
 import { PhotoEditor } from './PhotoEditor';
+import { TemplatesPage } from './TemplatesPage';
+import { AuditsPage } from './AuditsPage';
+import { FindingsPage } from './FindingsPage';
 import { setLocale } from './fmt';
 import { AvatarGalleriesPage } from './AvatarGalleriesPage';
 import { Avatar } from './Avatar';
@@ -125,8 +128,9 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
   const [account, setAccount] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed); // escritorio: solo iconos
   const [open, setOpen] = useState(false);                   // móvil: cajón lateral
-  const visible: NavItem[] = [...resources, ...pages].filter((r) => can(me, r.perm, 'ver'));
-  const current = visible.find((r) => r.id === route);
+  const [page, param] = route.split('/');
+  const visible: NavItem[] = [...resources, ...pages].filter((r) => can(me, r.perm, r.action ?? 'ver') && (!r.anyAction || r.anyAction.some((a) => can(me, r.perm, a))));
+  const current = visible.find((r) => r.id === page);
   const currentResource = resources.find((r) => r.id === current?.id);
   const profileCodes = [...new Map(me.profiles.map((p) => [p.code, p.name])).entries()];
   const groups = groupOrder.map((g) => ({ name: g, items: visible.filter((r) => r.group === g) })).filter((g) => g.items.length > 0);
@@ -202,7 +206,7 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
               </button>
               <div className="group-body" id={`grp-${i}`}><div>
                 {g.items.map((r) => (
-                  <a key={r.id} href={`#/${r.id}`} className={r.id === route ? 'active' : ''} title={r.title} tabIndex={isOpen ? 0 : -1}><Icon name={r.id} /><span>{r.title}</span></a>
+                  <a key={r.id} href={`#/${r.id}`} className={r.id === page ? 'active' : ''} title={r.title} tabIndex={isOpen ? 0 : -1}><Icon name={r.id} /><span>{r.title}</span></a>
                 ))}
               </div></div>
             </div>
@@ -227,6 +231,10 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
           : current?.id === 'catalogs' ? <CatalogsPage me={me} />
           : current?.id === 'settings' ? <SettingsPage me={me} reload={reload} />
           : current?.id === 'audit' ? <AuditPage />
+          : current?.id === 'field-templates' ? <TemplatesPage me={me} id={param} />
+          : current?.id === 'field-audits' ? <AuditsPage me={me} id={param} />
+          : current?.id === 'my-audits' ? <AuditsPage me={me} id={param} mine />
+          : current?.id === 'field-findings' ? <FindingsPage me={me} />
           : current?.id === 'avatar-galleries' ? <AvatarGalleriesPage me={me} />
           : <Home me={me} />}
       </main>

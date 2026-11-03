@@ -10,7 +10,7 @@ export type Field = {
   required?: boolean; createOnly?: boolean; help?: string;
 };
 
-export type NavItem = { id: string; title: string; perm: string; group: string };
+export type NavItem = { id: string; title: string; perm: string; group: string; action?: string; anyAction?: string[] };
 
 export type Resource = NavItem & {
   path: string;
@@ -100,10 +100,14 @@ export const resources: Resource[] = [
 ];
 
 // Orden de los grupos del menú (acordeón).
-export const groupOrder = ['Estructura', 'Personas y proyectos', 'Datos', 'Administración'];
+export const groupOrder = ['Estructura', 'Personas y proyectos', 'Auditoría en terreno', 'Datos', 'Administración'];
 
 // Pantallas con interfaz propia (no son un CRUD genérico).
 export const pages: NavItem[] = [
+  { id: 'my-audits', title: 'Mis auditorías', perm: 'auditorias', action: 'ejecutar', group: 'Auditoría en terreno' },
+  { id: 'field-audits', title: 'Auditorías', perm: 'auditorias', anyAction: ['crear', 'aprobar'], group: 'Auditoría en terreno' },
+  { id: 'field-findings', title: 'Hallazgos', perm: 'hallazgos', group: 'Auditoría en terreno' },
+  { id: 'field-templates', title: 'Plantillas', perm: 'plantillas_auditoria', group: 'Auditoría en terreno' },
   { id: 'imports', title: 'Importaciones', perm: 'importaciones', group: 'Datos' },
   { id: 'catalogs', title: 'Catálogos', perm: 'catalogos', group: 'Datos' },
   { id: 'profiles', title: 'Perfiles', perm: 'perfiles', group: 'Administración' },

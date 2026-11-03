@@ -14,7 +14,7 @@ export const session = {
 };
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string, public errors: Record<string, string[]> = {}) { super(message); }
+  constructor(public status: number, message: string, public errors: Record<string, string[]> = {}, public data: any = {}) { super(message); }
 }
 
 let onUnauthorized: () => void = () => {};
@@ -31,7 +31,7 @@ export async function api<T = any>(method: string, path: string, body?: unknown)
   if (res.status === 204) return undefined as T;
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && token) onUnauthorized();
-  if (!res.ok) throw new ApiError(res.status, data.message ?? `Error ${res.status}`, data.errors ?? {});
+  if (!res.ok) throw new ApiError(res.status, data.message ?? `Error ${res.status}`, data.errors ?? {}, data);
   return data as T;
 }
 
@@ -52,7 +52,7 @@ export async function upload<T = any>(path: string, form: FormData): Promise<T> 
   const res = await fetch(`/api/v1/${path}`, { method: 'POST', headers, body: form });
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && token) onUnauthorized();
-  if (!res.ok) throw new ApiError(res.status, data.message ?? `Error ${res.status}`, data.errors ?? {});
+  if (!res.ok) throw new ApiError(res.status, data.message ?? `Error ${res.status}`, data.errors ?? {}, data);
   return data as T;
 }
 

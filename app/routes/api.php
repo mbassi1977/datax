@@ -74,6 +74,7 @@ Route::prefix('v1')->group(function () {
         Route::post('audit-templates/{id}/restore', [FieldAuditTemplateController::class, 'restore'])->middleware('permission:plantillas_auditoria.editar');
         Route::post('audit-templates/{id}/duplicate', [FieldAuditTemplateController::class, 'duplicate'])->middleware('permission:plantillas_auditoria.crear');
 
+        Route::get('audits/auditors', [FieldAuditController::class, 'auditors'])->middleware('permission:auditorias.crear');
         Route::get('audits', [FieldAuditController::class, 'index'])->middleware('permission:auditorias.ver');
         Route::post('audits', [FieldAuditController::class, 'store'])->middleware('permission:auditorias.crear');
         Route::get('audits/{id}', [FieldAuditController::class, 'show'])->middleware('permission:auditorias.ver');

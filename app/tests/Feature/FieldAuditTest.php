@@ -145,6 +145,10 @@ class FieldAuditTest extends TestCase
         $this->postJson('/api/v1/audits', ['template_id' => $template, 'branch_id' => (string) Str::uuid()] + $base)->assertStatus(422);    // sucursal inexistente
         $this->postJson('/api/v1/audits', ['template_id' => $template, 'organization_id' => $this->a->id, 'auditor_id' => $this->user('colaborador')->id])->assertStatus(422);   // sin permiso de ejecutar
 
+        $this->as($admin);
+        $this->assertEqualsCanonicalizing([$admin->email, $auditor->email, $otherAuditor->email], collect($this->getJson("/api/v1/audits/auditors?organization_id={$this->a->id}")->assertOk()->json())->pluck('email')->all());
+        $this->as($auditor)->getJson("/api/v1/audits/auditors?organization_id={$this->a->id}")->assertStatus(403);               // solo quien asigna
+
         $id = $this->assign($admin, $template, $auditor);
         $audit = $this->getJson("/api/v1/audits/{$id}")->assertOk();
         $this->assertSame(['scheduled', 'Auditoría de local · Local Centro', 70, 1], [$audit->json('status'), $audit->json('title'), $audit->json('pass_threshold'), $audit->json('template_version')]);
