@@ -66,6 +66,9 @@ Route::prefix('v1')->group(function () {
         // Auditoría en terreno: plantillas, auditorías, hallazgos
         Route::get('audit-templates', [FieldAuditTemplateController::class, 'index'])->middleware('permission:plantillas_auditoria.ver');
         Route::post('audit-templates', [FieldAuditTemplateController::class, 'store'])->middleware('permission:plantillas_auditoria.crear');
+        Route::get('audit-templates/sample', [FieldAuditTemplateController::class, 'sample'])->middleware('permission:plantillas_auditoria.ver');
+        Route::post('audit-templates/import', [FieldAuditTemplateController::class, 'import'])->middleware('permission:plantillas_auditoria.crear');
+        Route::get('audit-templates/{id}/export', [FieldAuditTemplateController::class, 'export'])->middleware('permission:plantillas_auditoria.ver');
         Route::get('audit-templates/{id}', [FieldAuditTemplateController::class, 'show'])->middleware('permission:plantillas_auditoria.ver');
         Route::put('audit-templates/{id}', [FieldAuditTemplateController::class, 'update'])->middleware('permission:plantillas_auditoria.editar');
         Route::delete('audit-templates/{id}', [FieldAuditTemplateController::class, 'destroy'])->middleware('permission:plantillas_auditoria.eliminar');

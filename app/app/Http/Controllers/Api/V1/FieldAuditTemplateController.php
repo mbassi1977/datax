@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\FieldAudit\TemplateExcel;
 use App\FieldAudit\TemplateValidator;
 use App\Http\Controllers\Controller;
 use App\Models\FieldAuditTemplate;
@@ -9,6 +10,7 @@ use App\Support\Access\AccessService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Plantillas de auditoría (secciones y preguntas). Borrador → publicada → archivada.
@@ -26,6 +28,51 @@ class FieldAuditTemplateController extends Controller
             ->when($request->filled('q'), fn ($w) => $w->where('name', 'ilike', '%'.$request->query('q').'%'));
 
         return response()->json($q->get()->map(fn ($t) => $this->summary($t)));
+    }
+
+    /**
+     * Carga masiva desde Excel. mode=preview solo valida y devuelve el resumen/errores;
+     * mode=create crea una plantilla en borrador (nombre único: se agrega sufijo si ya existe).
+     */
+    public function import(Request $request): JsonResponse
+    {
+        $this->requireGlobal($request, 'plantillas_auditoria.crear');
+        $request->validate(['file' => ['required', 'file', 'max:10240', 'mimes:xlsx'], 'mode' => ['required', 'in:preview,create'], 'name' => ['nullable', 'string', 'max:150']]);
+        $r = TemplateExcel::parse($request->file('file')->getRealPath());
+        $out = ['ok' => $r['ok'], 'errors' => $r['errors'], 'warnings' => $r['warnings'], 'meta' => $r['meta'], 'summary' => $r['summary']];
+        if ($request->input('mode') === 'preview' || ! $r['ok']) {
+            return response()->json($out, 200);
+        }
+        $base = trim((string) ($request->input('name') ?: ($r['meta']['name'] ?? ''))) ?: 'Plantilla importada';
+        $name = $base;
+        for ($i = 2; FieldAuditTemplate::where('tenant_id', $request->user()->tenant_id)->where('name', $name)->exists(); $i++) {
+            $name = "{$base} ({$i})";
+        }
+        $t = FieldAuditTemplate::create([
+            'tenant_id' => $request->user()->tenant_id, 'name' => mb_substr($name, 0, 150), 'description' => $r['meta']['description'] ?? null,
+            'pass_threshold' => $r['meta']['pass_threshold'] ?? 80, 'scoring_enabled' => (bool) ($r['meta']['scoring_enabled'] ?? false),
+            'status' => 'draft', 'version' => 1, 'created_by' => $request->user()->id,
+            'structure' => TemplateValidator::normalize($r['structure'], false),
+        ]);
+
+        return response()->json($out + ['template' => $this->summary($t) + ['structure' => $t->structure]], 201);
+    }
+
+    public function export(Request $request, string $id): Response
+    {
+        $t = $this->find($request, $id);
+
+        return $this->xlsx(TemplateExcel::export($t), 'plantilla-'.\Illuminate\Support\Str::slug($t->name).'.xlsx');
+    }
+
+    public function sample(): Response
+    {
+        return $this->xlsx(TemplateExcel::sample(), 'plantilla-ejemplo.xlsx');
+    }
+
+    private function xlsx(string $bytes, string $filename): Response
+    {
+        return response($bytes, 200, ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition' => 'attachment; filename="'.$filename.'"']);
     }
 
     public function show(Request $request, string $id): JsonResponse

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\FieldAuditTemplate;
 use App\Models\Organization;
 use App\Models\Person;
 use App\Models\Tenant;
@@ -360,5 +361,68 @@ class FieldAuditTest extends TestCase
         $this->as($auditor)->putJson("/api/v1/findings/{$manual}", ['status' => 'open'])->assertStatus(403);                                  // el auditor ve, no edita
         $this->deleteJson("/api/v1/findings/{$manual}")->assertStatus(403);
         $this->as($admin)->deleteJson("/api/v1/findings/{$manual}")->assertNoContent();
+    }
+
+    private function badWorkbook(): string
+    {
+        $path = tempnam(sys_get_temp_dir(), 'bad').'.xlsx';
+        $w = new \OpenSpout\Writer\XLSX\Writer();
+        $w->openToFile($path);
+        $w->getCurrentSheet()->setName('Preguntas');
+        $w->addRow(\OpenSpout\Common\Entity\Row::fromValues(['Sección', 'Código', 'Pregunta', 'Tipo de respuesta', 'Condición 1 · pregunta (código)', 'Condición 1 · operador', 'Condición 1 · respuesta']));
+        $w->addRow(\OpenSpout\Common\Entity\Row::fromValues(['Local', 'P1', 'Extintor', 'Tipo inventado', '', '', '']));
+        $w->addRow(\OpenSpout\Common\Entity\Row::fromValues(['Local', 'P2', 'Orden', 'Sí / No / N/A', 'P99', 'es', 'No']));
+        $w->close();
+
+        return $path;
+    }
+
+    public function test_excel_round_trip_sample_and_error_reporting(): void
+    {
+        $admin = $this->user('admin');
+        $this->as($admin);
+        $id = $this->publishedTemplate($admin);
+
+        // El ejemplo se descarga y se vuelve a importar sin errores.
+        $sample = $this->get('/api/v1/audit-templates/sample')->assertOk();
+        $tmp = tempnam(sys_get_temp_dir(), 'tpl').'.xlsx';
+        file_put_contents($tmp, $sample->getContent());
+        $file = new UploadedFile($tmp, 'ejemplo.xlsx', null, null, true);
+        $prev = $this->post('/api/v1/audit-templates/import', ['file' => $file, 'mode' => 'preview'])->assertOk();
+        $this->assertTrue($prev->json('ok'), json_encode($prev->json('errors')));
+        $this->assertGreaterThan(0, $prev->json('summary.questions'));
+
+        // Exportar una plantilla y reimportarla conserva secciones, preguntas, tipos y reglas de hallazgo.
+        $export = $this->get("/api/v1/audit-templates/{$id}/export")->assertOk();
+        $tmp2 = tempnam(sys_get_temp_dir(), 'tpl').'.xlsx';
+        file_put_contents($tmp2, $export->getContent());
+        $created = $this->post('/api/v1/audit-templates/import', ['file' => new UploadedFile($tmp2, 'x.xlsx', null, null, true), 'mode' => 'create'])->assertCreated();
+        $orig = $this->getJson("/api/v1/audit-templates/{$id}")->json('structure');
+        $new = $created->json('template.structure');
+        $this->assertSame('draft', $created->json('template.status'));
+        $this->assertNotSame('Auditoría de local', $created->json('template.name'));   // nombre único
+        $this->assertCount(count($orig['sections']), $new['sections']);
+        foreach ($orig['sections'] as $si => $sec) {
+            $this->assertSame($sec['title'], $new['sections'][$si]['title']);
+            foreach ($sec['questions'] as $qi => $q) {
+                $nq = $new['sections'][$si]['questions'][$qi];
+                $this->assertSame($q['text'], $nq['text']);
+                $this->assertSame($q['type'], $nq['type']);
+                $this->assertSame($q['finding_on'] ?? [], $nq['finding_on'] ?? []);
+            }
+        }
+
+        // Un archivo con errores se reporta con hoja/fila y no crea nada.
+        $before = FieldAuditTemplate::count();
+        $bad = $this->badWorkbook();
+        $res = $this->post('/api/v1/audit-templates/import', ['file' => new UploadedFile($bad, 'mal.xlsx', null, null, true), 'mode' => 'create'])->assertOk();
+        $this->assertFalse($res->json('ok'));
+        $this->assertNotEmpty($res->json('errors'));
+        $this->assertArrayHasKey('row', $res->json('errors.0'));
+        $this->assertSame($before, FieldAuditTemplate::count());
+
+        // Sin alcance global no puede cargar.
+        $this->as($this->user('admin', 'organization', $this->a->id));
+        $this->post('/api/v1/audit-templates/import', ['file' => $file, 'mode' => 'preview'])->assertForbidden();
     }
 }

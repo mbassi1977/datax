@@ -30,6 +30,30 @@ class SpreadsheetReader
         return $ext === 'xlsx' ? self::xlsx($path) : self::csv($path);
     }
 
+    /**
+     * Todas las hojas de un .xlsx: [nombre normalizado => ['name' => nombre, 'rows' => [n° de fila => celdas]]].
+     * Para archivos con varias hojas (p. ej. plantillas de auditoría).
+     */
+    public static function workbook(string $path): array
+    {
+        $out = [];
+        $reader = new XlsxReader();
+        $reader->open($path);
+        try {
+            foreach ($reader->getSheetIterator() as $sheet) {
+                $rows = [];
+                foreach ($sheet->getRowIterator() as $i => $row) {
+                    $rows[$i] = self::cells($row->toArray());
+                }
+                $out[Cast::norm($sheet->getName())] = ['name' => $sheet->getName(), 'rows' => $rows];
+            }
+        } finally {
+            $reader->close();
+        }
+
+        return $out;
+    }
+
     private static function csv(string $path): Generator
     {
         $raw = file_get_contents($path);
