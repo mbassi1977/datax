@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
-import { api, ApiError, Me } from './api';
+import { api, ApiError, download, Me, upload } from './api';
 import { can, Modal } from './ResourcePage';
 import {
   blankQuestion, canControl, canFinding, Cond, CondOp, describeCond, evidenceLabels, newId, Option, Question, QType, Section, severityLabels, statusClass, statusLabels, Structure,
@@ -17,6 +17,7 @@ function List({ me }: { me: Me }) {
   const [items, setItems] = useState<Summary[]>([]);
   const [error, setError] = useState('');
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const load = useCallback(() => { api<Summary[]>('GET', 'audit-templates').then(setItems).catch((e) => setError(e.message)); }, []);
   useEffect(load, [load]);
 
@@ -25,7 +26,11 @@ function List({ me }: { me: Me }) {
 
   return (
     <section>
-      <header className="bar"><h1>Plantillas de auditoría</h1>{can(me, 'plantillas_auditoria', 'crear') && <button className="primary" onClick={() => setCreating(true)}>+ Nueva plantilla</button>}</header>
+      <header className="bar"><h1>Plantillas de auditoría</h1><div className="actions">
+        <button onClick={() => act(() => download('audit-templates/sample', 'plantilla-ejemplo.xlsx'))}>Descargar ejemplo Excel</button>
+        {can(me, 'plantillas_auditoria', 'crear') && <button onClick={() => setImporting(true)}>Importar desde Excel</button>}
+        {can(me, 'plantillas_auditoria', 'crear') && <button className="primary" onClick={() => setCreating(true)}>+ Nueva plantilla</button>}
+      </div></header>
       <p className="muted">Una plantilla define las secciones y preguntas de una auditoría. Al asignar una auditoría se guarda una copia, así que editar la plantilla después no cambia las auditorías ya asignadas.</p>
       {error && <p className="error">{error}</p>}
       <div className="card table-wrap">
@@ -39,6 +44,7 @@ function List({ me }: { me: Me }) {
                 <td>{t.version}</td><td>{t.sections_count}</td><td>{t.questions_count}</td>
                 <td className="actions">
                   <button onClick={() => (location.hash = `#/field-templates/${t.id}`)}>{canWrite && t.status !== 'archived' ? 'Editar' : 'Ver'}</button>
+                  <button onClick={() => act(() => download(`audit-templates/${t.id}/export`, `plantilla-${t.name.replace(/[^\w]+/g, '-').toLowerCase()}.xlsx`))}>Excel</button>
                   {can(me, 'plantillas_auditoria', 'crear') && <button onClick={() => act(async () => { const c = await api<Summary>('POST', `audit-templates/${t.id}/duplicate`); location.hash = `#/field-templates/${c.id}`; })}>Duplicar</button>}
                   {canWrite && (t.status === 'archived'
                     ? <button onClick={() => act(() => api('POST', `audit-templates/${t.id}/restore`))}>Restaurar</button>
@@ -52,7 +58,64 @@ function List({ me }: { me: Me }) {
         </table>
       </div>
       {creating && <NewTemplate onClose={() => setCreating(false)} />}
+      {importing && <ImportExcel onClose={() => setImporting(false)} onDone={(id) => { setImporting(false); location.hash = `#/field-templates/${id}`; }} />}
     </section>
+  );
+}
+
+type ImportResult = {
+  ok: boolean; errors: { sheet: string; row: number | null; column: string | null; message: string }[]; warnings: string[];
+  meta: { name?: string }; summary: { sections: number; questions: number; conditions: number; finding_rules: number }; template?: { id: string };
+};
+
+/** Carga masiva: primero se valida el archivo (vista previa con errores por hoja y fila) y recién entonces se crea el borrador. */
+function ImportExcel({ onClose, onDone }: { onClose: () => void; onDone: (id: string) => void }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [name, setName] = useState('');
+  const [res, setRes] = useState<ImportResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const send = async (mode: 'preview' | 'create') => {
+    if (!file) return;
+    setBusy(true); setError('');
+    try {
+      const form = new FormData();
+      form.append('file', file); form.append('mode', mode);
+      if (name.trim()) form.append('name', name.trim());
+      const r = await upload<ImportResult>('audit-templates/import', form);
+      if (mode === 'create' && r.ok && r.template) return onDone(r.template.id);
+      setRes(r);
+      if (!name && r.meta?.name) setName(r.meta.name);
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal title="Importar plantilla desde Excel" onClose={onClose}>
+      <p className="muted">Suba un archivo .xlsx con el formato de la plantilla de ejemplo. Se validará antes de crear nada; se crea como borrador.</p>
+      <label>Archivo<input type="file" accept=".xlsx" onChange={(e) => { setFile(e.target.files?.[0] ?? null); setRes(null); }} /></label>
+      <label>Nombre (opcional, por defecto el del archivo)<input value={name} onChange={(e) => setName(e.target.value)} maxLength={150} /></label>
+      {error && <p className="error">{error}</p>}
+      {res && (
+        <div>
+          {res.ok
+            ? <p className="success">Archivo válido: {res.summary.sections} secciones, {res.summary.questions} preguntas, {res.summary.conditions} condiciones, {res.summary.finding_rules} reglas de hallazgo.</p>
+            : <p className="error">El archivo tiene {res.errors.length} error{res.errors.length === 1 ? '' : 'es'}. Corríjalos y vuelva a subirlo.</p>}
+          {res.errors.length > 0 && (
+            <div className="table-wrap"><table>
+              <thead><tr><th>Hoja</th><th>Fila</th><th>Columna</th><th>Problema</th></tr></thead>
+              <tbody>{res.errors.map((e, i) => <tr key={i}><td>{e.sheet}</td><td>{e.row ?? '—'}</td><td>{e.column ?? '—'}</td><td>{e.message}</td></tr>)}</tbody>
+            </table></div>
+          )}
+          {res.warnings.length > 0 && <ul className="muted">{res.warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>}
+        </div>
+      )}
+      <div className="buttons">
+        <button type="button" onClick={onClose}>Cancelar</button>
+        <button type="button" disabled={!file || busy} onClick={() => send('preview')}>{busy ? 'Validando…' : 'Validar'}</button>
+        <button type="button" className="primary" disabled={!file || busy || !res?.ok} onClick={() => send('create')}>Crear plantilla</button>
+      </div>
+    </Modal>
   );
 }
 
@@ -146,6 +209,7 @@ function Builder({ me, id }: { me: Me; id: string }) {
         <h1><a href="#/field-templates" className="back">←</a> {tpl.name} <span className={`badge ${statusClass(tpl.status)}`}>{statusLabels[tpl.status]}</span> <small className="muted">v{tpl.version}</small></h1>
         {editable && <>
           <button onClick={save} disabled={!dirty || busy}>{busy ? 'Guardando…' : dirty ? 'Guardar cambios' : 'Guardado'}</button>
+          <button onClick={() => download(`audit-templates/${tpl.id}/export`, 'plantilla.xlsx').catch((e) => setMsg({ ok: false, text: e.message }))}>Descargar Excel</button>
           {tpl.status !== 'published' && <button className="primary" onClick={publish} disabled={busy}>Publicar</button>}
         </>}
       </header>
