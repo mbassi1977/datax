@@ -4,7 +4,7 @@ import { can, Modal } from './ResourcePage';
 import { formatDateTime } from './fmt';
 
 type Field = { key: string; label: string; required: boolean; required_unless: string | null };
-type Target = { key: string; label: string; fields: Field[] };
+type Target = { key: string; label: string; default_org?: boolean; fields: Field[] };
 type Warn = { row: number; source: string; first_name: string | null; last_name: string | null; second_last_name: string | null; confidence: 'medium' | 'low' | 'manual'; note: string | null };
 type Parts = { first_name: string; last_name: string; second_last_name: string };
 type Template = { id: string; name: string };
@@ -131,7 +131,7 @@ function Wizard({ up, orgs, onClose }: { up: Upload & { target: Target; file: st
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const done = job?.status === 'completed' || job?.status === 'rejected';
-  const isPeople = up.target.key === 'people';
+  const isPeople = !!up.target.default_org;
 
   const setMap = (field: string, v: string) => { setMapping((m) => ({ ...m, [field]: v === '' ? null : Number(v) })); setJob(null); };
   const missing = up.target.fields.filter((f) => f.required && mapping[f.key] == null && !(f.required_unless && mapping[f.required_unless] != null));

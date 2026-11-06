@@ -220,7 +220,7 @@ class ImportTest extends TestCase
 
         $this->app['auth']->forgetGuards();
         $this->actingAs($this->user(), 'sanctum');
-        $this->assertEqualsCanonicalizing(['organizations', 'people'], collect($this->getJson('/api/v1/imports/targets')->json())->pluck('key')->all());
+        $this->assertEqualsCanonicalizing(['holdings', 'organizations', 'branches', 'areas', 'cost_centers', 'projects', 'people'], collect($this->getJson('/api/v1/imports/targets')->json())->pluck('key')->all());
         $this->get('/api/v1/imports/targets/people/template', ['Accept' => 'text/csv'])->assertOk()->assertHeader('content-disposition');
         $this->upload('people', UploadedFile::fake()->createWithContent('x.pdf', 'nada'))->assertStatus(422);
         $this->upload('people', $this->csv(''))->assertStatus(422);
@@ -309,5 +309,53 @@ class ImportTest extends TestCase
         $this->assertSame('Gómez-Rojas', $q->last_name);             // la columna explícita manda
         $this->assertSame('Luis', $q->first_name);
         $this->runImport($up->json('id'), ['mode' => 'simulate', 'mapping' => $up->json('suggested_mapping'), 'name_format' => 'inventado'])->assertStatus(422);
+    }
+
+    private function loadCsv(string $target, string $csv, array $extra = []): array
+    {
+        $up = $this->upload($target, $this->csv($csv, "$target.csv"), $extra)->assertCreated();
+        $map = $up->json('suggested_mapping');
+        $sim = $this->runImport($up->json('id'), ['mode' => 'simulate', 'mapping' => $map] + $extra)->assertOk();
+        $done = $this->runImport($up->json('id'), ['mode' => 'commit', 'mapping' => $map] + $extra)->assertOk();
+
+        return [$sim->json(), $done->json()];
+    }
+
+    public function test_organizational_structure_targets_load_in_dependency_order(): void
+    {
+        $this->actingAs($this->user(), 'sanctum');
+        $this->assertContains('branches', collect($this->getJson('/api/v1/imports/targets')->json())->pluck('key')->all());
+
+        [$sim, $done] = $this->loadCsv('holdings', "Nombre\nGrupo Uno\nGrupo Dos\ngrupo uno\n");
+        $this->assertSame(2, $done['created_count']);   // el duplicado del archivo es error
+        $this->assertSame(1, $done['error_count']);
+
+        [, $done] = $this->loadCsv('branches', "Empresa;Sucursal;Comuna\nEmpresa A;Casa Matriz;Santiago\nEmpresa A;Norte;Antofagasta\nNo existe;X;Y\n");
+        $this->assertSame([2, 1], [$done['created_count'], $done['error_count']]);
+
+        // Sin columna de empresa: organización por defecto; el área hija viene antes de su padre en el archivo => error; el padre antes => ok.
+        [$sim, $done] = $this->loadCsv('areas', "Área;Área superior;Sucursal\nGerencia;;Casa Matriz\nOperaciones;Gerencia;Casa Matriz\nHuérfana;Nadie;\nSucursal mala;;Fantasma\n", ['organization_id' => $this->a->id]);
+        $this->assertSame(2, $sim['created_count']);
+        $this->assertSame(2, $done['error_count']);
+        $this->assertSame('Gerencia', \DB::table('core.areas')->where('name', 'Gerencia')->value('name'));
+        $this->assertNotNull(\DB::table('core.areas')->where('name', 'Operaciones')->value('parent_id'));
+        $this->assertNotNull(\DB::table('core.areas')->where('name', 'Operaciones')->value('branch_id'));
+
+        [, $done] = $this->loadCsv('cost_centers', "Código;Nombre;Área\nCC-1;Operaciones Stgo;Operaciones\nCC-1;Repetido;\n", ['organization_id' => $this->a->id]);
+        $this->assertSame([1, 1], [$done['created_count'], $done['error_count']]);
+
+        [, $done] = $this->loadCsv('projects', "Código;Proyecto;Inicio;Término;Estado;Centro de costo\nP-1;Implementación;01/03/2026;31/12/2026;En curso;CC-1\nP-2;Mal;31/12/2026;01/01/2026;;\nP-3;Otro;;;Abortado;\n", ['organization_id' => $this->a->id]);
+        $this->assertSame([1, 2], [$done['created_count'], $done['error_count']]);
+        $this->assertSame('active', \DB::table('master.projects')->where('code', 'P-1')->value('status'));
+    }
+
+    public function test_scoped_user_cannot_import_structure_outside_their_organizations(): void
+    {
+        $u = $this->user('admin', 'organization', $this->a->id);
+        $this->actingAs($u, 'sanctum');
+        [, $done] = $this->loadCsv('branches', "Empresa;Sucursal\nEmpresa A;Propia\nEmpresa B;Ajena\n");
+        $this->assertSame([1, 1], [$done['created_count'], $done['error_count']]);
+        [, $done] = $this->loadCsv('holdings', "Nombre\nGrupo\n");
+        $this->assertSame(0, $done['created_count']);   // holdings exige alcance global
     }
 }

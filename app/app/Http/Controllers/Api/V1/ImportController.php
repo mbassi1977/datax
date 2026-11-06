@@ -32,7 +32,7 @@ class ImportController extends Controller
         $out = [];
         foreach (ImportRegistry::all() as $t) {
             if ($this->access->can($request->user(), $t->permission().'.crear', $request->header('X-Profile'))) {
-                $out[] = ['key' => $t->key(), 'label' => $t->label(), 'fields' => collect($t->fields())->map(fn ($f, $k) => ['key' => $k, 'label' => $f['label'], 'required' => $f['required'] ?? false, 'required_unless' => $f['required_unless'] ?? null])->values()];
+                $out[] = ['key' => $t->key(), 'label' => $t->label(), 'default_org' => $t instanceof \App\Imports\PersonTarget || $t instanceof \App\Imports\OrgScopedTarget, 'fields' => collect($t->fields())->map(fn ($f, $k) => ['key' => $k, 'label' => $f['label'], 'required' => $f['required'] ?? false, 'required_unless' => $f['required_unless'] ?? null])->values()];
             }
         }
 
