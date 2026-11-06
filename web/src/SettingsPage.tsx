@@ -3,11 +3,11 @@ import { api, ApiError, Me, upload } from './api';
 import { can } from './ResourcePage';
 import { formatDateTime } from './fmt';
 
-type Def = { key: string; type: 'string' | 'color' | 'timezone' | 'enum' | 'int' | 'bool'; label: string; group: string; help?: string; min?: number; max?: number; options?: string[]; value: unknown; inherited: unknown };
+type Def = { key: string; type: 'string' | 'email' | 'color' | 'timezone' | 'enum' | 'int' | 'bool'; label: string; group: string; help?: string; min?: number; max?: number; options?: string[]; value: unknown; inherited: unknown };
 type View = { organization_id: string | null; definitions: Def[]; logo: { url: string | null; inherited_url: string | null } };
 type Org = { id: string; legal_name: string; trade_name?: string | null };
 
-const groups: Record<string, string> = { brand: 'Identidad visual', locale: 'Regional', security: 'Seguridad' };
+const groups: Record<string, string> = { brand: 'Identidad visual', locale: 'Regional', security: 'Seguridad', mail: 'Correo' };
 const dateLabels: Record<string, string> = { 'dd/mm/yyyy': 'dd/mm/aaaa (31/12/2026)', 'yyyy-mm-dd': 'aaaa-mm-dd (2026-12-31)', 'mm/dd/yyyy': 'mm/dd/aaaa (12/31/2026)' };
 const zones: string[] = (() => { try { return (Intl as any).supportedValuesOf('timeZone') as string[]; } catch { return ['America/Santiago', 'America/Punta_Arenas', 'Pacific/Easter', 'UTC']; } })();
 
@@ -62,7 +62,7 @@ export function SettingsPage({ me, reload }: { me: Me; reload: () => void }) {
       case 'enum': return <select value={String(v)} disabled={off} onChange={(e) => setDraft({ ...draft, [d.key]: e.target.value })}>{d.options!.map((o) => <option key={o} value={o}>{dateLabels[o] ?? o}</option>)}</select>;
       case 'int': return <input type="number" min={d.min} max={d.max} value={Number(v)} disabled={off} onChange={(e) => setDraft({ ...draft, [d.key]: Number(e.target.value) })} />;
       case 'bool': return <label className="check"><input type="checkbox" checked={Boolean(v)} disabled={off} onChange={(e) => setDraft({ ...draft, [d.key]: e.target.checked })} />{Boolean(v) ? 'Sí' : 'No'}</label>;
-      default: return <input value={String(v ?? '')} maxLength={d.max} disabled={off} onChange={(e) => setDraft({ ...draft, [d.key]: e.target.value })} />;
+      default: return <input type={d.type === 'email' ? 'email' : 'text'} value={String(v ?? '')} maxLength={d.max} disabled={off} onChange={(e) => setDraft({ ...draft, [d.key]: e.target.value })} />;
     }
   };
 
@@ -76,7 +76,7 @@ export function SettingsPage({ me, reload }: { me: Me; reload: () => void }) {
         ) : (
           <div className="ctl inherit">
             <span className="muted">{scope ? 'General' : 'Por defecto'}: <strong>{shown(d, d.inherited)}</strong></span>
-            {canEdit && <button type="button" onClick={() => setDraft({ ...draft, [d.key]: d.inherited ?? (d.type === 'string' ? '' : d.type === 'bool' ? false : d.min ?? 0) })}>Personalizar</button>}
+            {canEdit && <button type="button" onClick={() => setDraft({ ...draft, [d.key]: d.inherited ?? (d.type === 'string' || d.type === 'email' ? '' : d.type === 'bool' ? false : d.min ?? 0) })}>Personalizar</button>}
           </div>
         )}
       </div>
@@ -111,6 +111,7 @@ export function SettingsPage({ me, reload }: { me: Me; reload: () => void }) {
             </div>
           )}
           {view.definitions.filter((d) => d.group === g).map(row)}
+          {g === 'mail' && !scope && can(me, 'configuracion', 'ver') && <MailPanel canEdit={canEdit} />}
           {g === 'locale' && <small className="muted">Hora actual en la zona elegida: {formatDateTime(new Date().toISOString())}</small>}
         </div>
       ))}
@@ -121,5 +122,37 @@ export function SettingsPage({ me, reload }: { me: Me; reload: () => void }) {
         </div>
       )}
     </section>
+  );
+}
+
+type MailStatus = { driver: string; live: boolean; from_address: string; queued_mode: boolean; counts: Record<string, number>; recent: { id: string; to_email: string; subject: string; status: string; error: string | null; created_at: string }[] };
+const mailStatus: Record<string, string> = { queued: 'En cola', sent: 'Enviado', failed: 'Falló' };
+
+/** Estado del envío de correos (proveedor, remitente), prueba de envío y últimos mensajes. */
+function MailPanel({ canEdit }: { canEdit: boolean }) {
+  const [st, setSt] = useState<MailStatus | null>(null);
+  const [to, setTo] = useState('');
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const load = useCallback(() => { api<MailStatus>('GET', 'mail/status').then(setSt).catch((e) => setMsg({ ok: false, text: e.message })); }, []);
+  useEffect(load, [load]);
+  const test = async () => {
+    setMsg(null);
+    try { const r = await api<{ message: string }>('POST', 'mail/test', to ? { to } : {}); setMsg({ ok: true, text: r.message }); setTimeout(load, 1500); } catch (e) { setMsg({ ok: false, text: (e as Error).message }); }
+  };
+  if (!st) return msg ? <p className="error">{msg.text}</p> : null;
+  return (
+    <div className="setting">
+      <div className="head"><strong>Envío de correos</strong>
+        <small className="muted">Proveedor: <code>{st.driver}</code> · Remitente: <code>{st.from_address}</code> · {st.queued_mode ? 'con cola' : 'envío directo'}</small></div>
+      {!st.live && <p className="error">El proveedor «{st.driver}» no entrega correos reales: solo los escribe en el registro del servidor. Configure MAIL_MAILER en el servidor (ver README).</p>}
+      {canEdit && <div className="ctl"><input type="email" placeholder="Destinatario de prueba (por defecto, usted)" value={to} onChange={(e) => setTo(e.target.value)} /><button type="button" onClick={test}>Enviar correo de prueba</button></div>}
+      {msg && <p className={msg.ok ? 'ok' : 'error'}>{msg.text}</p>}
+      {st.recent.length > 0 && (
+        <div className="table-wrap"><table>
+          <thead><tr><th>Fecha</th><th>Para</th><th>Asunto</th><th>Estado</th></tr></thead>
+          <tbody>{st.recent.map((m) => <tr key={m.id}><td>{formatDateTime(m.created_at)}</td><td>{m.to_email}</td><td>{m.subject}</td><td>{mailStatus[m.status] ?? m.status}{m.error && <><br /><small className="muted">{m.error}</small></>}</td></tr>)}</tbody>
+        </table></div>
+      )}
+    </div>
   );
 }

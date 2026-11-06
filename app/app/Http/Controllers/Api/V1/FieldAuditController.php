@@ -102,6 +102,8 @@ class FieldAuditController extends Controller
             'due_on' => $data['due_on'] ?? null, 'status' => 'scheduled', 'created_by' => $user->id,
         ]);
 
+        $this->notify($audit, 'audit_assigned', ['when' => $audit->scheduled_for?->format('d/m/Y'), 'due' => $audit->due_on?->format('d/m/Y')]);
+
         return response()->json($this->present($audit), 201);
     }
 
@@ -258,6 +260,7 @@ class FieldAuditController extends Controller
     {
         $audit = $this->reviewable($request, $id);
         $audit->update(['status' => 'approved', 'reviewed_by' => $request->user()->id, 'reviewed_at' => now(), 'review_notes' => $request->input('notes')]);
+        $this->notify($audit, 'audit_approved');
 
         return response()->json($this->present($audit));
     }
@@ -267,8 +270,20 @@ class FieldAuditController extends Controller
         $request->validate(['notes' => ['required', 'string', 'max:1000']]);
         $audit = $this->reviewable($request, $id);
         $audit->update(['status' => 'returned', 'reviewed_by' => $request->user()->id, 'reviewed_at' => now(), 'review_notes' => $request->input('notes')]);
+        $this->notify($audit, 'audit_returned', ['notes' => $request->input('notes')]);
 
         return response()->json($this->present($audit));
+    }
+
+    /** Avisa al auditor por correo; un fallo de correo nunca debe romper la operación. */
+    private function notify(FieldAudit $audit, string $template, array $extra = []): void
+    {
+        try {
+            $auditor = \App\Models\User::find($audit->auditor_id);
+            $auditor && app(\App\Support\Mail\MailService::class)->sendToUser($auditor, $template, array_filter($extra) + ['title' => $audit->title, 'url' => \App\Support\Mail\MailService::link($template === 'audit_assigned' || $template === 'audit_returned' ? 'my-audits/'.$audit->id : 'field-audits/'.$audit->id)]);
+        } catch (\Throwable $e) {
+            report($e);
+        }
     }
 
     // ───────────────────────────── apoyo ─────────────────────────────

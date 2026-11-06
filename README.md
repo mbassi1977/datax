@@ -113,3 +113,21 @@ Los listados aceptan `?q=` (búsqueda) y `?organization_id=`. Los registros sin 
 Autenticación: `Authorization: Bearer <token>`. Perfil activo opcional: header `X-Profile: <código>`.
 Los resultados se filtran por tenant y por alcance del perfil (global, holding, organización, sucursal, área, proyecto).
 Crear organizaciones exige alcance global. Todo cambio queda en `audit.audit_events`.
+
+
+## Plantillas en Excel
+`GET /api/v1/audit-templates/sample` descarga un ejemplo; `POST /api/v1/audit-templates/import` (multipart `file`, `mode=preview|create`)
+valida el .xlsx y devuelve errores por hoja/fila (o crea la plantilla en borrador); `GET /api/v1/audit-templates/{id}/export` descarga cualquier
+plantilla en el mismo formato (se puede editar y volver a cargar).
+
+## Importaciones
+Destinos: holdings, organizaciones, sucursales, áreas (con «Área superior»), centros de costo, proyectos y personas.
+Orden recomendado: holdings → organizaciones → sucursales → áreas → centros de costo → personas → proyectos.
+
+## Correo
+Todo el correo sale por `App\Support\Mail\MailService` (bitácora en `audit.mail_log`, plantillas en español en `MailTemplates`).
+Qué envía hoy: recuperar contraseña, invitación/acceso de usuario (botón «Enviar acceso»), auditoría asignada/devuelta/aprobada.
+Configuración (`.env`): `MAIL_MAILER` + credenciales del proveedor, `MAIL_FROM_ADDRESS` (dirección verificada en el proveedor),
+`APP_URL` (los enlaces de los correos se arman con esta URL). Nombre del remitente y «Responder a» se ajustan en Configuración → Correo.
+Recomendación: proveedor transaccional por API (Postmark, o Resend/Amazon SES por costo) con dominio propio verificado (SPF/DKIM/DMARC);
+en producción `HRX_MAIL_QUEUE=true` y un worker (`php artisan queue:work`) bajo systemd para reintentos.

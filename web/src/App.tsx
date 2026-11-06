@@ -43,7 +43,7 @@ export function App() {
   }, [loadMe]);
 
   if (!ready) return <p className="center muted">Cargando…</p>;
-  if (!me) return <Login onDone={loadMe} />;
+  if (!me) return location.hash.startsWith('#/reset') ? <ResetPassword /> : <Login onDone={loadMe} />;
   if (me.settings?.security.mfa_required && !me.mfa?.enabled) return <ForcedMfa me={me} reload={loadMe} />;
   return <Shell me={me} reload={loadMe} />;
 }
@@ -70,13 +70,18 @@ function Login({ onDone }: { onDone: () => void }) {
   const [recovery, setRecovery] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [forgot, setForgot] = useState(false);
+  const [sent, setSent] = useState(false);
 
   const finish = (token: string) => { session.setTenant(tenant); session.setProfile(null); session.setToken(token); onDone(); };
 
   const submit = async (e: FormEvent) => {
     e.preventDefault(); setBusy(true); setError('');
     try {
-      if (challenge) {
+      if (forgot) {
+        await api('POST', 'auth/forgot-password', { tenant, email });
+        setSent(true);
+      } else if (challenge) {
         const r = await api<{ token: string }>('POST', 'auth/mfa', { mfa_token: challenge, ...(recovery ? { recovery_code: code } : { code }) });
         finish(r.token);
       } else {
@@ -95,7 +100,15 @@ function Login({ onDone }: { onDone: () => void }) {
       <form className="card" onSubmit={submit}>
         <h1>HRX</h1>
         <p className="muted">Plataforma de Gestión Organizacional</p>
-        {challenge ? (
+        {forgot ? (
+          sent ? <p className="ok">Si la cuenta existe, le enviamos un correo con las instrucciones. Revise también su carpeta de spam.</p> : (
+            <>
+              <p><strong>Recuperar contraseña</strong></p>
+              <label><span>Organización cliente (tenant)</span><input value={tenant} onChange={(e) => setTenant(e.target.value)} required /></label>
+              <label><span>Correo</span><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></label>
+            </>
+          )
+        ) : challenge ? (
           <>
             <p><strong>Verificación en dos pasos</strong></p>
             <label><span>{recovery ? 'Código de recuperación' : 'Código de 6 dígitos de su aplicación autenticadora'}</span>
@@ -110,8 +123,50 @@ function Login({ onDone }: { onDone: () => void }) {
           </>
         )}
         {error && <p className="error">{error}</p>}
-        <button className="primary" disabled={busy}>{busy ? 'Verificando…' : challenge ? 'Verificar' : 'Ingresar'}</button>
+        {!(forgot && sent) && <button className="primary" disabled={busy}>{busy ? 'Verificando…' : forgot ? 'Enviar instrucciones' : challenge ? 'Verificar' : 'Ingresar'}</button>}
+        {!challenge && <button type="button" className="link" onClick={() => { setForgot(!forgot); setSent(false); setError(''); }}>{forgot ? 'Volver a ingresar' : '¿Olvidó su contraseña?'}</button>}
         {challenge && <button type="button" onClick={() => { setChallenge(null); setPassword(''); setError(''); }}>Volver</button>}
+      </form>
+    </main>
+  );
+}
+
+/** Pantalla a la que llega el enlace del correo: #/reset?tenant=…&email=…&token=… */
+function ResetPassword() {
+  const q = new URLSearchParams(location.hash.split('?')[1] ?? '');
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [error, setError] = useState('');
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: FormEvent) => {
+    e.preventDefault(); setBusy(true); setError('');
+    try {
+      await api('POST', 'auth/reset-password', { tenant: q.get('tenant'), email: q.get('email'), token: q.get('token'), password, password_confirmation: confirmation });
+      session.setTenant(q.get('tenant') ?? ''); setDone(true);
+    } catch (e2) { const ae = e2 as ApiError; setError(Object.values(ae.errors ?? {}).flat().join(' ') || ae.message); } finally { setBusy(false); }
+  };
+
+  return (
+    <main className="login">
+      <form className="card" onSubmit={submit}>
+        <h1>HRX</h1>
+        {done ? (
+          <>
+            <p className="ok">Contraseña actualizada.</p>
+            <button type="button" className="primary" onClick={() => { location.hash = ''; location.reload(); }}>Ir a ingresar</button>
+          </>
+        ) : (
+          <>
+            <p><strong>Elegir nueva contraseña</strong></p>
+            <p className="muted">{q.get('email')}</p>
+            <label><span>Nueva contraseña</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus autoComplete="new-password" /></label>
+            <label><span>Repetir contraseña</span><input type="password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} required autoComplete="new-password" /></label>
+            {error && <p className="error">{error}</p>}
+            <button className="primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar contraseña'}</button>
+          </>
+        )}
       </form>
     </main>
   );

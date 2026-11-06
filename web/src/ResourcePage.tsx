@@ -38,6 +38,11 @@ export function ResourcePage({ res, me }: { res: Resource; me: Me }) {
     })).then((e) => setRefs(Object.fromEntries(e)));
   }, [res.id]);
 
+  const sendAccess = async (row: any) => {
+    if (!confirm(`¿Enviar a ${row.email} un enlace para elegir su contraseña?`)) return;
+    try { const r = await api<{ message: string }>('POST', `${res.path}/${row.id}/send-access`); alert(r.message); } catch (e) { setError((e as Error).message); }
+  };
+
   const remove = async (row: any) => {
     if (!confirm('¿Eliminar este registro?')) return;
     try { await api('DELETE', `${res.path}/${row.id}`); load(); } catch (e) { setError((e as Error).message); }
@@ -66,6 +71,7 @@ export function ResourcePage({ res, me }: { res: Resource; me: Me }) {
                 ))}
                 <td className="actions">
                   {res.profilesPanel && can(me, res.perm, 'ver') && <button onClick={() => setProfilesFor(r)}>Perfiles</button>}
+                  {res.id === 'users' && can(me, 'usuarios', 'editar') && r.status === 'active' && <button onClick={() => sendAccess(r)}>Enviar acceso</button>}
                   {can(me, res.perm, 'editar') && <button onClick={() => setEditing({ row: r })}>Editar</button>}
                   {can(me, res.perm, 'eliminar') && <button className="danger" onClick={() => remove(r)}>Eliminar</button>}
                 </td>

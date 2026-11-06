@@ -26,6 +26,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function () {
     Route::post('auth/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+    Route::post('auth/forgot-password', [\App\Http\Controllers\Api\V1\PasswordResetController::class, 'forgot'])->middleware('throttle:5,1');
+    Route::post('auth/reset-password', [\App\Http\Controllers\Api\V1\PasswordResetController::class, 'reset'])->middleware('throttle:10,1');
     Route::post('auth/mfa', [AuthController::class, 'verifyMfa'])->middleware('throttle:20,1');
 
     // Imágenes de avatar: URL firmada (un <img> no puede enviar el token)
@@ -140,6 +142,9 @@ Route::prefix('v1')->group(function () {
         Route::delete('organizations/{id}', [OrganizationController::class, 'destroy'])->middleware('permission:organizaciones.eliminar');
 
         // Importador universal (Excel/CSV): subir -> mapear -> simular -> cargar
+        Route::get('mail/status', [\App\Http\Controllers\Api\V1\MailController::class, 'status'])->middleware('permission:configuracion.ver');
+        Route::post('mail/test', [\App\Http\Controllers\Api\V1\MailController::class, 'test'])->middleware('permission:configuracion.editar');
+        Route::post('users/{id}/send-access', [\App\Http\Controllers\Api\V1\MailController::class, 'sendAccess'])->middleware('permission:usuarios.editar');
         Route::get('imports/targets', [ImportController::class, 'targets'])->middleware('permission:importaciones.ver');
         Route::get('imports/targets/{target}/template', [ImportController::class, 'template'])->middleware('permission:importaciones.ver');
         Route::get('imports', [ImportController::class, 'index'])->middleware('permission:importaciones.ver');
