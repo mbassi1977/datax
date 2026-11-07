@@ -54,12 +54,14 @@ class ImportRunner
         }
 
         $ctx->warnings = [];
+        $ctx->commit = $commit;
+        $ctx->cache = [];
         $stats = ['total' => 0, 'created' => 0, 'updated' => 0, 'skipped' => 0, 'error_rows' => 0, 'errors' => []];
         $seen = [];
         $headerSeen = false;
         $update = (bool) ($options['update_existing'] ?? false);
 
-        foreach (SpreadsheetReader::rows($path, SpreadsheetReader::extension($job->original_name)) as $n => $cells) {
+        foreach (SpreadsheetReader::rows($path, SpreadsheetReader::extension($job->original_name), $job->options['sheet'] ?? null) as $n => $cells) {
             if (! $headerSeen) {
                 if (array_filter($cells, fn ($c) => $c !== '') !== []) {
                     $headerSeen = true; // primera fila con contenido = encabezado
@@ -69,8 +71,8 @@ class ImportRunner
             if (array_filter($cells, fn ($c) => $c !== '') === []) {
                 continue; // fila vacía
             }
-            if (++$stats['total'] > SpreadsheetReader::MAX_ROWS) {
-                throw new RuntimeException('El archivo supera el máximo de '.SpreadsheetReader::MAX_ROWS.' filas por importación. Divídalo en partes.');
+            if (++$stats['total'] > $target->maxRows()) {
+                throw new RuntimeException('El archivo supera el máximo de '.$target->maxRows().' filas por importación. Divídalo en partes.');
             }
 
             $raw = [];
@@ -118,6 +120,10 @@ class ImportRunner
                 $commit && $target->create($ctx, $data);
                 $stats['created']++;
             }
+        }
+
+        if ($commit) {
+            $target->finalize($ctx);
         }
 
         $stats['warnings'] = array_slice($ctx->warnings, 0, self::MAX_ERRORS);

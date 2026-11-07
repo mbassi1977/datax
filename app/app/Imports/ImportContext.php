@@ -10,6 +10,9 @@ use Illuminate\Support\Facades\DB;
 class ImportContext
 {
     public ?int $currentRow = null;
+    public bool $commit = false;
+    /** Memoria de la corrida para los destinos que resuelven referencias (cadenas, salas, productos…). */
+    public array $cache = [];
     /** @var array<int, array> avisos de revisión (p. ej. separación de nombres dudosa) */
     public array $warnings = [];
     private array $allowed = [];

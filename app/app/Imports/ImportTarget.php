@@ -17,6 +17,19 @@ abstract class ImportTarget
     /** @return array<string, array{label:string, required?:bool, synonyms?:string[], example?:string}> */
     abstract public function fields(): array;
 
+    /** Límites propios del destino (las cargas de ventas son mucho más grandes que las de maestros). */
+    public function maxRows(): int { return SpreadsheetReader::MAX_ROWS; }
+    public function maxKb(): int { return 5120; }
+
+    /** El archivo puede traer varias hojas y hay que elegir cuál cargar. */
+    public function multiSheet(): bool { return false; }
+
+    /** Opciones propias que el asistente muestra: [{key,label,type: chain|select|number, choices?}]. */
+    public function extraOptions(): array { return []; }
+
+    /** Se ejecuta al terminar de leer el archivo, solo en la carga definitiva (p. ej. para escribir en bloque). */
+    public function finalize(ImportContext $ctx): void {}
+
     /** Campos que deben estar relacionados con una columna (algunos pueden ser opcionales según otro campo). */
     public function requiredFields(array $mapping): array
     {

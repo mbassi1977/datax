@@ -9,10 +9,10 @@ use Illuminate\Support\Str;
 /** Perfiles de sistema y permisos base del núcleo (cap. 13). */
 class SecuritySeeder extends Seeder
 {
-    private array $resources = ['organizaciones', 'configuracion', 'holdings', 'avatares', 'importaciones', 'sucursales', 'areas', 'centros_costo', 'personas', 'proyectos', 'usuarios', 'perfiles', 'catalogos', 'auditoria', 'plantillas_auditoria', 'auditorias', 'hallazgos'];
+    private array $resources = ['organizaciones', 'configuracion', 'holdings', 'avatares', 'importaciones', 'sucursales', 'areas', 'centros_costo', 'personas', 'proyectos', 'usuarios', 'perfiles', 'catalogos', 'auditoria', 'plantillas_auditoria', 'auditorias', 'hallazgos', 'sellout', 'sellout_solicitudes'];
     private array $actions = ['ver', 'crear', 'editar', 'eliminar'];
     /** Acciones adicionales de algunos módulos. */
-    private array $extraActions = ['auditorias' => ['ejecutar', 'aprobar']];
+    private array $extraActions = ['auditorias' => ['ejecutar', 'aprobar'], 'sellout' => ['campo'], 'sellout_solicitudes' => ['atender']];
 
     private array $profiles = [
         'superadmin' => 'Superadministrador',
@@ -24,6 +24,8 @@ class SecuritySeeder extends Seeder
         'supervisor' => 'Supervisor',
         'colaborador' => 'Colaborador',
         'auditor' => 'Auditor en terreno',
+        'supervisor_sellout' => 'Supervisor Sell-out',
+        'cliente_sellout' => 'Cliente Sell-out',
     ];
 
     public function run(): void
@@ -57,5 +59,8 @@ class SecuritySeeder extends Seeder
         $grant('admin', array_keys($permissionIds));
         $grant('colaborador', ['personas.ver', 'proyectos.ver']);
         $grant('auditor', ['auditorias.ver', 'auditorias.ejecutar', 'hallazgos.ver']);
+        // Sell-out: el supervisor sube fotos/comentarios y atiende solicitudes; el cliente solo mira y solicita.
+        $grant('supervisor_sellout', ['sellout.ver', 'sellout.campo', 'sellout_solicitudes.ver', 'sellout_solicitudes.atender']);
+        $grant('cliente_sellout', ['sellout.ver', 'sellout_solicitudes.ver', 'sellout_solicitudes.crear']);
     }
 }

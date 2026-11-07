@@ -33,6 +33,9 @@ Route::prefix('v1')->group(function () {
     // Imágenes de avatar: URL firmada (un <img> no puede enviar el token)
     Route::get('media/avatars/{avatar}', [MediaController::class, 'avatar'])->name('media.avatar')->middleware('signed:relative');
     Route::get('media/audit-evidence/{evidence}', [MediaController::class, 'auditEvidence'])->name('media.audit-evidence')->middleware('signed:relative');
+    Route::get('media/sellout/products/{product}', [MediaController::class, 'selloutProduct'])->name('media.sellout-product')->middleware('signed:relative');
+    Route::get('media/sellout/photos/{photo}', [MediaController::class, 'selloutPhoto'])->name('media.sellout-photo')->middleware('signed:relative');
+    Route::get('media/sellout/responses/{req}', [MediaController::class, 'selloutResponse'])->name('media.sellout-response')->middleware('signed:relative');
     Route::get('media/logos/{setting}', [MediaController::class, 'logo'])->name('media.logo')->middleware('signed:relative');
     Route::get('media/users/{user}/avatar', [MediaController::class, 'userAvatar'])->name('media.user-avatar')->middleware('signed:relative');
 
@@ -145,6 +148,32 @@ Route::prefix('v1')->group(function () {
         Route::get('mail/status', [\App\Http\Controllers\Api\V1\MailController::class, 'status'])->middleware('permission:configuracion.ver');
         Route::post('mail/test', [\App\Http\Controllers\Api\V1\MailController::class, 'test'])->middleware('permission:configuracion.editar');
         Route::post('users/{id}/send-access', [\App\Http\Controllers\Api\V1\MailController::class, 'sendAccess'])->middleware('permission:usuarios.editar');
+        $so = \App\Http\Controllers\Api\V1\SelloutController::class;
+        $sp = \App\Http\Controllers\Api\V1\SelloutProductController::class;
+        $sr = \App\Http\Controllers\Api\V1\SelloutRequestController::class;
+        Route::get('sellout/clients', [$so, 'clients'])->middleware('permission:sellout.ver');
+        Route::get('sellout/dataset', [$so, 'dataset'])->middleware('permission:sellout.ver');
+        Route::get('sellout/chains', [$so, 'chains'])->middleware('permission:sellout.ver');
+        Route::post('sellout/chains', [$so, 'storeChain'])->middleware('permission:sellout.editar');
+        Route::put('sellout/chains/{id}', [$so, 'updateChain'])->middleware('permission:sellout.editar');
+        Route::get('sellout/points', [$so, 'points'])->middleware('permission:sellout.ver');
+        Route::put('sellout/points/{id}', [$so, 'updatePoint'])->middleware('permission:sellout.editar');
+        Route::get('sellout/points/{id}/detail', [$so, 'pointDetail'])->middleware('permission:sellout.ver');
+        Route::post('sellout/points/{id}/notes', [$so, 'addNote'])->middleware('permission:sellout.campo');
+        Route::post('sellout/points/{id}/photos', [$so, 'addPhoto'])->middleware('permission:sellout.campo');
+        Route::delete('sellout/photos/{id}', [$so, 'deletePhoto'])->middleware('permission:sellout.campo');
+        Route::get('sellout/products', [$sp, 'index'])->middleware('permission:sellout.ver');
+        Route::post('sellout/products', [$sp, 'store'])->middleware('permission:sellout.editar');
+        Route::put('sellout/products/{id}', [$sp, 'update'])->middleware('permission:sellout.editar');
+        Route::delete('sellout/products/{id}', [$sp, 'destroy'])->middleware('permission:sellout.editar');
+        Route::post('sellout/products/{id}/image', [$sp, 'image'])->middleware('permission:sellout.editar');
+        Route::delete('sellout/products/{id}/image', [$sp, 'removeImage'])->middleware('permission:sellout.editar');
+        Route::get('sellout/requests', [$sr, 'index'])->middleware('permission:sellout_solicitudes.ver');
+        Route::post('sellout/requests', [$sr, 'store'])->middleware('permission:sellout_solicitudes.crear');
+        Route::post('sellout/requests/{id}/respond', [$sr, 'respond'])->middleware('permission:sellout_solicitudes.atender');
+        Route::post('sellout/requests/{id}/close', [$sr, 'close'])->middleware('permission:sellout_solicitudes.crear');
+        Route::post('sellout/requests/{id}/reopen', [$sr, 'reopen'])->middleware('permission:sellout_solicitudes.crear');
+        Route::post('imports/{id}/sheet', [\App\Http\Controllers\Api\V1\ImportController::class, 'sheet'])->middleware('permission:importaciones.crear');
         Route::get('imports/targets', [ImportController::class, 'targets'])->middleware('permission:importaciones.ver');
         Route::get('imports/targets/{target}/template', [ImportController::class, 'template'])->middleware('permission:importaciones.ver');
         Route::get('imports', [ImportController::class, 'index'])->middleware('permission:importaciones.ver');

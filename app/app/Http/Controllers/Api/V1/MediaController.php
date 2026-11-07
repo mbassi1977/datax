@@ -35,6 +35,29 @@ class MediaController extends Controller
         return $this->file($e->path, $e->mime);
     }
 
+    public function selloutProduct(string $product): Response
+    {
+        $p = \App\Models\SelloutProduct::findOrFail($product);
+        abort_unless($p->image_path, 404);
+
+        return $this->file($p->image_path, $p->image_mime ?: 'image/png');
+    }
+
+    public function selloutPhoto(string $photo): Response
+    {
+        $f = \App\Models\SelloutPointPhoto::findOrFail($photo);
+
+        return $this->file($f->path, $f->mime);
+    }
+
+    public function selloutResponse(string $req): Response
+    {
+        $r = \App\Models\SelloutRequest::findOrFail($req);
+        abort_unless($r->response_photo, 404);
+
+        return $this->file($r->response_photo, $r->response_mime ?: 'image/jpeg');
+    }
+
     public function logo(string $setting): Response
     {
         $s = Setting::where('key', 'brand.logo')->findOrFail($setting);

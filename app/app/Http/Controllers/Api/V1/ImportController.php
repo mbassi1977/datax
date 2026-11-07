@@ -32,7 +32,7 @@ class ImportController extends Controller
         $out = [];
         foreach (ImportRegistry::all() as $t) {
             if ($this->access->can($request->user(), $t->permission().'.crear', $request->header('X-Profile'))) {
-                $out[] = ['key' => $t->key(), 'label' => $t->label(), 'default_org' => $t instanceof \App\Imports\PersonTarget || $t instanceof \App\Imports\OrgScopedTarget, 'fields' => collect($t->fields())->map(fn ($f, $k) => ['key' => $k, 'label' => $f['label'], 'required' => $f['required'] ?? false, 'required_unless' => $f['required_unless'] ?? null])->values()];
+                $out[] = ['key' => $t->key(), 'label' => $t->label(), 'default_org' => $t instanceof \App\Imports\PersonTarget || $t instanceof \App\Imports\OrgScopedTarget || $t instanceof \App\Imports\SelloutTarget, 'org_label' => $t instanceof \App\Imports\SelloutTarget ? 'Cliente (marca)' : null, 'options' => $t->extraOptions(), 'multi_sheet' => $t->multiSheet(), 'max_rows' => $t->maxRows(), 'fields' => collect($t->fields())->map(fn ($f, $k) => ['key' => $k, 'label' => $f['label'], 'required' => $f['required'] ?? false, 'required_unless' => $f['required_unless'] ?? null])->values()];
             }
         }
 
@@ -57,9 +57,10 @@ class ImportController extends Controller
     /** Paso 1: sube el archivo; devuelve columnas, vista previa y mapeo sugerido. */
     public function upload(Request $request): JsonResponse
     {
-        $request->validate(['target' => ['required', 'string'], 'file' => ['required', 'file', 'max:5120'], 'template_id' => ['nullable', 'uuid']]);
+        $request->validate(['target' => ['required', 'string'], 'file' => ['required', 'file', 'max:61440'], 'template_id' => ['nullable', 'uuid'], 'sheet' => ['nullable', 'string', 'max:100']]);
         $t = $this->target($request, $request->input('target'));
         $file = $request->file('file');
+        abort_if($file->getSize() > $t->maxKb() * 1024, 422, 'El archivo supera el máximo de '.round($t->maxKb() / 1024).' MB para este destino.');
 
         try {
             $ext = SpreadsheetReader::extension($file->getClientOriginalName());
@@ -72,11 +73,37 @@ class ImportController extends Controller
         $stored = $file->storeAs("imports/{$tenant}", "{$job->id}.{$ext}", 'local');
         $job->update(['stored_path' => $stored]);
 
+        $res = $this->analyze($job, $t, $stored, $ext, $request->input('sheet'));
+        $headers = $res['headers'];
+        $preview = $res['preview'];
+        $total = $res['total'];
+
+        $template = $request->filled('template_id') ? ImportTemplate::where('tenant_id', $tenant)->where('target', $t->key())->find($request->input('template_id')) : null;
+
+        return response()->json([
+            'id' => $job->id, 'headers' => $headers, 'preview' => $preview, 'total_rows' => $total, 'sheets' => $res['sheets'], 'sheet' => $res['sheet'],
+            'suggested_mapping' => $template ? $this->fromTemplate($t, $headers, $template->mapping) : $this->suggest($t, $headers),
+            'templates' => ImportTemplate::where('tenant_id', $tenant)->where('target', $t->key())->orderBy('name')->get(['id', 'name']),
+        ], 201);
+    }
+
+
+    /** Lee encabezado, vista previa y total de filas (de la hoja elegida si el archivo trae varias). */
+    private function analyze(ImportJob $job, ImportTarget $t, string $stored, string $ext, ?string $sheet): array
+    {
+        $path = Storage::disk('local')->path($stored);
+        $sheets = [];
+        try {
+            $sheets = SpreadsheetReader::sheetNames($path, $ext);
+        } catch (RuntimeException $e) {
+            abort(422, 'No se pudo leer el archivo: '.$e->getMessage());
+        }
+        $sheet = $sheet && in_array($sheet, $sheets, true) ? $sheet : ($sheets[0] ?? null);
         $headers = [];
         $preview = [];
         $total = 0;
         try {
-            foreach (SpreadsheetReader::rows(Storage::disk('local')->path($stored), $ext) as $cells) {
+            foreach (SpreadsheetReader::rows($path, $ext, $sheet) as $cells) {
                 if (array_filter($cells, fn ($c) => $c !== '') === []) {
                     continue;
                 }
@@ -88,25 +115,31 @@ class ImportController extends Controller
                 if (count($preview) < 5) {
                     $preview[] = $cells;
                 }
-                if ($total > SpreadsheetReader::MAX_ROWS) {
-                    abort(422, 'El archivo supera el máximo de '.SpreadsheetReader::MAX_ROWS.' filas por importación. Divídalo en partes.');
+                if ($total > $t->maxRows()) {
+                    abort(422, 'El archivo supera el máximo de '.$t->maxRows().' filas por importación. Divídalo en partes.');
                 }
             }
         } catch (RuntimeException $e) {
             abort(422, 'No se pudo leer el archivo: '.$e->getMessage());
         }
         if ($headers === []) {
-            abort(422, 'El archivo está vacío.');
+            abort(422, 'La hoja está vacía.');
         }
-        $job->update(['total_rows' => $total, 'options' => ['headers' => $headers]]);
+        $job->update(['total_rows' => $total, 'options' => ['headers' => $headers, 'sheet' => $sheet]]);
 
-        $template = $request->filled('template_id') ? ImportTemplate::where('tenant_id', $tenant)->where('target', $t->key())->find($request->input('template_id')) : null;
+        return ['headers' => $headers, 'preview' => $preview, 'total' => $total, 'sheets' => count($sheets) > 1 ? $sheets : [], 'sheet' => $sheet];
+    }
 
-        return response()->json([
-            'id' => $job->id, 'headers' => $headers, 'preview' => $preview, 'total_rows' => $total,
-            'suggested_mapping' => $template ? $this->fromTemplate($t, $headers, $template->mapping) : $this->suggest($t, $headers),
-            'templates' => ImportTemplate::where('tenant_id', $tenant)->where('target', $t->key())->orderBy('name')->get(['id', 'name']),
-        ], 201);
+    /** Cambia de hoja sobre un archivo ya subido (vuelve a leer encabezado y vista previa). */
+    public function sheet(Request $request, string $id): JsonResponse
+    {
+        $data = $request->validate(['sheet' => ['required', 'string', 'max:100']]);
+        $job = ImportJob::where('tenant_id', $request->user()->tenant_id)->where('user_id', $request->user()->id)->findOrFail($id);
+        abort_if(in_array($job->status, ['completed', 'rejected'], true) || ! $job->stored_path, 409, 'Esta importación ya fue procesada.');
+        $t = $this->target($request, $job->target);
+        $res = $this->analyze($job, $t, (string) $job->stored_path, SpreadsheetReader::extension($job->original_name), $data['sheet']);
+
+        return response()->json(['id' => $job->id, 'headers' => $res['headers'], 'preview' => $res['preview'], 'total_rows' => $res['total'], 'sheets' => $res['sheets'], 'sheet' => $res['sheet'], 'suggested_mapping' => $this->suggest($t, $res['headers'])]);
     }
 
     /** Paso 2: simula (mode=simulate) o carga (mode=commit) con el mapeo indicado. */
@@ -120,6 +153,7 @@ class ImportController extends Controller
             'on_error' => ['in:skip,abort'],
             'organization_id' => ['nullable', 'uuid'],
             'save_template_as' => ['nullable', 'string', 'max:100'],
+            'extra' => ['nullable', 'array'],
             'name_format' => ['nullable', Rule::in(NameSplitter::FORMATS)],
             'name_overrides' => ['nullable', 'array', 'max:5000'],
             'name_overrides.*' => ['array'],
@@ -141,7 +175,8 @@ class ImportController extends Controller
         }
 
         $options = ['update_existing' => (bool) ($data['update_existing'] ?? false), 'on_error' => $data['on_error'] ?? 'skip', 'organization_id' => $data['organization_id'] ?? null,
-            'name_format' => $data['name_format'] ?? 'auto', 'name_overrides' => $data['name_overrides'] ?? []];
+            'name_format' => $data['name_format'] ?? 'auto', 'name_overrides' => $data['name_overrides'] ?? [],
+            'extra' => collect($data['extra'] ?? [])->only(collect($t->extraOptions())->pluck('key')->all())->all()];
         if ($options['organization_id'] && ! $this->access->canOnOrganization($request->user(), $t->permission().'.crear', $options['organization_id'], $request->header('X-Profile'))) {
             abort(403, 'La organización indicada está fuera de su alcance.');
         }

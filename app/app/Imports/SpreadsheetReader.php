@@ -25,9 +25,29 @@ class SpreadsheetReader
     }
 
     /** @return Generator<int, array<int, string>> clave = número de fila del archivo (1 = encabezado) */
-    public static function rows(string $path, string $ext): Generator
+    public static function rows(string $path, string $ext, ?string $sheet = null): Generator
     {
-        return $ext === 'xlsx' ? self::xlsx($path) : self::csv($path);
+        return $ext === 'xlsx' ? self::xlsx($path, $sheet) : self::csv($path);
+    }
+
+    /** Nombres de las hojas de un .xlsx (vacío para CSV). */
+    public static function sheetNames(string $path, string $ext): array
+    {
+        if ($ext !== 'xlsx') {
+            return [];
+        }
+        $names = [];
+        $reader = new XlsxReader();
+        $reader->open($path);
+        try {
+            foreach ($reader->getSheetIterator() as $sheet) {
+                $names[] = $sheet->getName();
+            }
+        } finally {
+            $reader->close();
+        }
+
+        return $names;
     }
 
     /**
@@ -82,12 +102,15 @@ class SpreadsheetReader
         }
     }
 
-    private static function xlsx(string $path): Generator
+    private static function xlsx(string $path, ?string $only = null): Generator
     {
         $reader = new XlsxReader();
         $reader->open($path);
         try {
             foreach ($reader->getSheetIterator() as $sheet) {
+                if ($only !== null && $sheet->getName() !== $only) {
+                    continue;
+                }
                 foreach ($sheet->getRowIterator() as $i => $row) {
                     yield $i => self::cells($row->toArray());
                 }

@@ -5,7 +5,7 @@ namespace App\Support\Mail;
 /** Textos de los correos transaccionales (español). Cada plantilla devuelve asunto, saludo, párrafos y un botón opcional. */
 class MailTemplates
 {
-    public const KEYS = ['password_reset', 'invitation', 'audit_assigned', 'audit_returned', 'audit_approved', 'finding_assigned', 'test'];
+    public const KEYS = ['password_reset', 'invitation', 'audit_assigned', 'audit_returned', 'audit_approved', 'finding_assigned', 'sellout_request_attended', 'test'];
 
     /** @return array{subject:string, lines:array<string>, action:?array{label:string,url:string}, footnote:?string} */
     public static function render(string $key, array $d): array
@@ -47,6 +47,12 @@ class MailTemplates
                 'subject' => "Hallazgo asignado: {$d['title']}",
                 'lines' => ["Se le asignó el hallazgo «{$d['title']}»."] + (! empty($d['due']) ? [1 => "Plazo de resolución: {$d['due']}."] : []),
                 'action' => ['label' => 'Ver hallazgos', 'url' => $d['url']],
+                'footnote' => null,
+            ],
+            'sellout_request_attended' => [
+                'subject' => "Su solicitud fue atendida: {$d['where']}",
+                'lines' => ["El supervisor atendió su solicitud para {$d['where']}.", "Respuesta: {$d['response']}", 'Puede confirmarla o reabrirla desde Solicitudes.'],
+                'action' => ['label' => 'Ver solicitud', 'url' => $d['url']],
                 'footnote' => null,
             ],
             'test' => [
