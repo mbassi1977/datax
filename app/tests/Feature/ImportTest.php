@@ -220,7 +220,7 @@ class ImportTest extends TestCase
 
         $this->app['auth']->forgetGuards();
         $this->actingAs($this->user(), 'sanctum');
-        $this->assertEqualsCanonicalizing(['holdings', 'organizations', 'branches', 'areas', 'cost_centers', 'projects', 'people'], collect($this->getJson('/api/v1/imports/targets')->json())->pluck('key')->all());
+        $this->assertEqualsCanonicalizing(['holdings', 'organizations', 'branches', 'areas', 'cost_centers', 'projects', 'people', 'sellout_points', 'sellout_sales', 'sellout_goals'], collect($this->getJson('/api/v1/imports/targets')->json())->pluck('key')->all());
         $this->get('/api/v1/imports/targets/people/template', ['Accept' => 'text/csv'])->assertOk()->assertHeader('content-disposition');
         $this->upload('people', UploadedFile::fake()->createWithContent('x.pdf', 'nada'))->assertStatus(422);
         $this->upload('people', $this->csv(''))->assertStatus(422);
