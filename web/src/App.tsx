@@ -1,4 +1,4 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { api, ApiError, Me, session, setUnauthorizedHandler, upload } from './api';
 import { groupOrder, pages, resources } from './resources';
 import type { NavItem } from './resources';
@@ -17,6 +17,8 @@ import { AvatarGalleriesPage } from './AvatarGalleriesPage';
 import { Avatar } from './Avatar';
 import { Icon } from './Icon';
 import { can, Modal, ResourcePage } from './ResourcePage';
+const SelloutPage = lazy(() => import('./sellout/SelloutPage').then((m) => ({ default: m.SelloutPage })));
+const SelloutCatalogPage = lazy(() => import('./sellout/CatalogPage').then((m) => ({ default: m.SelloutCatalogPage })));
 
 const useHash = () => {
   const [h, setH] = useState(location.hash.slice(2));
@@ -281,6 +283,8 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
       </nav>
       <main>
         {currentResource ? <ResourcePage key={currentResource.id} res={currentResource} me={me} />
+          : current?.id === 'sellout' ? <Suspense fallback={<p className="muted">Cargando…</p>}><SelloutPage me={me} tab={param} onTab={(t) => { location.hash = `#/sellout/${t}`; }} /></Suspense>
+          : current?.id === 'sellout-catalog' ? <Suspense fallback={<p className="muted">Cargando…</p>}><SelloutCatalogPage me={me} /></Suspense>
           : current?.id === 'imports' ? <ImportsPage me={me} />
           : current?.id === 'profiles' ? <ProfilesPage me={me} />
           : current?.id === 'catalogs' ? <CatalogsPage me={me} />

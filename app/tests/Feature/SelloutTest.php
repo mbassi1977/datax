@@ -224,4 +224,30 @@ class SelloutTest extends TestCase
         $this->load('sellout_sales', "Fecha;Local ID;Local DESC;Producto;Venta Neta;Unidades\n01/03/2025;T1;Tottus Uno;Flor de Truco;1000;2\n", ['extra' => ['chain_id' => $chain]]);
         $this->deleteJson("/api/v1/sellout/products/{$p['id']}")->assertStatus(409);                                                          // tiene ventas
     }
+
+    public function test_multi_sheet_workbook_lets_you_pick_the_sheet_and_keeps_it_through_simulate_and_commit(): void
+    {
+        $admin = $this->user('admin');
+        $this->as($admin);
+        $this->postJson('/api/v1/sellout/chains?organization_id='.$this->loa->id, ['name' => 'Cencosud']);
+        $path = tempnam(sys_get_temp_dir(), 'wb').'.xlsx';
+        $w = new \OpenSpout\Writer\XLSX\Writer();
+        $w->openToFile($path);
+        $w->getCurrentSheet()->setName('Resumen');
+        $w->addRow(\OpenSpout\Common\Entity\Row::fromValues(['Texto suelto', 'otro']));
+        $w->addNewSheetAndMakeItCurrent()->setName('Salas');
+        $w->addRow(\OpenSpout\Common\Entity\Row::fromValues(['Cliente', 'Codigo', 'Local', 'Direccion']));
+        $w->addRow(\OpenSpout\Common\Entity\Row::fromValues(['Cencosud', 'J501', 'Jumbo Bilbao', 'Av. Bilbao 100, Las Condes']));
+        $w->close();
+        $file = new UploadedFile($path, 'libro.xlsx', null, null, true);
+
+        $up = $this->post('/api/v1/imports', ['target' => 'sellout_points', 'file' => $file], ['Accept' => 'application/json'])->assertCreated();
+        $this->assertSame(['Resumen', 'Salas'], $up->json('sheets'));
+        $sw = $this->postJson('/api/v1/imports/'.$up->json('id').'/sheet', ['sheet' => 'Salas'])->assertOk();
+        $this->assertSame(['Cliente', 'Codigo', 'Local', 'Direccion'], $sw->json('headers'));
+        $payload = ['mapping' => $sw->json('suggested_mapping'), 'organization_id' => $this->loa->id];
+        $this->postJson('/api/v1/imports/'.$up->json('id').'/run', $payload + ['mode' => 'simulate'])->assertOk()->assertJsonPath('created_count', 1);
+        $this->postJson('/api/v1/imports/'.$up->json('id').'/run', $payload + ['mode' => 'commit'])->assertOk()->assertJsonPath('created_count', 1)->assertJsonPath('error_count', 0);
+        $this->assertSame(1, DB::table('sellout.points')->count());
+    }
 }

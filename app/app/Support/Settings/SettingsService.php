@@ -65,6 +65,7 @@ class SettingsService
         return [
             'brand' => ['name' => $e['brand.name'], 'primary_color' => $e['brand.primary_color'], 'logo_url' => $this->logoUrl($this->logoRow($tenantId, $orgId))],
             'locale' => ['timezone' => $e['locale.timezone'], 'date_format' => $e['locale.date_format']],
+            'maps' => ['tile_url' => $e['maps.tile_url'], 'attribution' => $e['maps.tile_attribution']],
             'security' => ['mfa_required' => (bool) $e['security.mfa_required'], 'password_min_length' => $e['security.password_min_length']],
         ];
     }

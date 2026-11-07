@@ -131,3 +131,14 @@ Configuración (`.env`): `MAIL_MAILER` + credenciales del proveedor, `MAIL_FROM_
 `APP_URL` (los enlaces de los correos se arman con esta URL). Nombre del remitente y «Responder a» se ajustan en Configuración → Correo.
 Recomendación: proveedor transaccional por API (Postmark, o Resend/Amazon SES por costo) con dominio propio verificado (SPF/DKIM/DMARC);
 en producción `HRX_MAIL_QUEUE=true` y un worker (`php artisan queue:work`) bajo systemd para reintentos.
+
+## Sell-out (módulo)
+Venta en sala de un **cliente** (marca) en las cadenas de retail: tablero con resumen, mapa de salas, entorno de cada sala (las más cercanas con distancia), metas, alertas y solicitudes del cliente.
+
+- **Datos por cliente** (la organización dueña): catálogo de productos (nombre, equivalencias por cadena, color, diseño/imagen, unidades por caja), cadenas, salas (con dirección y ubicación), ventas por sala/producto/período, metas mensuales en cajas.
+- **Carga** desde Importaciones: «Sell-out · Salas» (cadena, código, nombre, dirección → ubicación por la comuna de la dirección), «Sell-out · Ventas» (acepta los formatos de Cencosud, Tottus, Unimarc/SMU y Walmart tal como vienen; varias hojas por archivo; día/semana → mes; recargar un período lo reemplaza; crea las salas que falten) y «Sell-out · Metas». Primero se define el catálogo de productos (con sus alias) en Sell-out → Catálogo.
+- **Permisos** (`sellout.ver|crear|editar|campo`, `sellout_solicitudes.ver|crear|atender`) y perfiles `supervisor_sellout` (fotos, comentarios, atiende solicitudes) y `cliente_sellout` (solo mira y solicita). Todo se acota por la organización del alcance.
+- **Solicitudes**: pendiente → atendida (el supervisor **debe** explicar qué hizo; foto opcional; se avisa por correo al cliente) → cerrada (conforme) o reabierta. Queda historial.
+- **Mapas**: límites oficiales de regiones y comunas incluidos; se arrastran y acercan; capa de calles configurable en Configuración → Mapas (por defecto OpenStreetMap; para mucho tráfico use un proveedor con contrato). Las salas se ubican por comuna hasta que se corrige su latitud/longitud (queda «exacta»); un geocodificador por dirección es el siguiente paso.
+- API (`/api/v1/sellout/...`): `clients`, `dataset`, `chains`, `products` (+`/image`), `points` (+`/detail`, `/notes`, `/photos`), `requests` (+`/respond`, `/close`, `/reopen`). El tablero calcula períodos y comparaciones en el navegador a partir de `dataset` (ideal hasta unos cientos de salas por cliente).
+- Servidor: la base necesita el esquema `sellout` (migración) y, si `DB_SEARCH_PATH` está fijado en `.env`, agregarlo; para cargas grandes subir `upload_max_filesize`/`post_max_size` (60 MB) y `memory_limit`.

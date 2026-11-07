@@ -19,6 +19,8 @@ class SettingsRegistry
             'brand.primary_color' => ['type' => 'color', 'group' => 'brand', 'label' => 'Color principal', 'default' => '#1f5eff'],
             'mail.from_name' => ['type' => 'string', 'group' => 'mail', 'label' => 'Nombre del remitente', 'default' => null, 'max' => 80, 'help' => 'Cómo aparece el remitente en los correos. Por defecto, el nombre visible.'],
             'mail.reply_to' => ['type' => 'email', 'group' => 'mail', 'label' => 'Responder a', 'default' => null, 'max' => 150, 'help' => 'Dirección que recibe las respuestas. La dirección de envío la define el servidor.'],
+            'maps.tile_url' => ['type' => 'string', 'group' => 'maps', 'label' => 'Capa de calles (URL de teselas)', 'default' => 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', 'max' => 300, 'help' => 'Plantilla con {z}/{x}/{y}. Por defecto OpenStreetMap, adecuado para uso moderado; para alto tráfico use un proveedor con contrato (Mapbox, MapTiler, Google). Vacío = sin calles.'],
+            'maps.tile_attribution' => ['type' => 'string', 'group' => 'maps', 'label' => 'Atribución del mapa', 'default' => '© colaboradores de OpenStreetMap', 'max' => 200],
             'locale.timezone' => ['type' => 'timezone', 'group' => 'locale', 'label' => 'Zona horaria', 'default' => 'America/Santiago'],
             'locale.date_format' => ['type' => 'enum', 'group' => 'locale', 'label' => 'Formato de fecha', 'default' => 'dd/mm/yyyy', 'options' => self::DATE_FORMATS],
             'security.password_min_length' => ['type' => 'int', 'group' => 'security', 'label' => 'Largo mínimo de contraseña', 'default' => 10, 'min' => 8, 'max' => 64],

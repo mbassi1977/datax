@@ -24,6 +24,8 @@ const paths: Record<string, string> = {
   'field-audits': 'M9 4h6a1 1 0 0 1 1 1v1H8V5a1 1 0 0 1 1-1zM6 6h12a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1zM9 13l2 2 4-4',
   'field-findings': 'M12 3l9 16H3L12 3zM12 10v4M12 17h.01',
   'field-templates': 'M7 3h8l4 4v14a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v5h5M9 13h6M9 17h6',
+  sellout: 'M4 20V10M10 20V4M16 20v-7M22 20H2M4 6l4-3 4 3 5-4',
+  'sellout-catalog': 'M12 2l8 4.5v9L12 20l-8-4.5v-9L12 2zM12 11l8-4.5M12 11v9M12 11L4 6.5',
   chevron: 'M6 9l6 6 6-6',
   collapse: 'M11 17l-5-5 5-5M18 17l-5-5 5-5',
   expand: 'M13 17l5-5-5-5M6 17l5-5-5-5',

@@ -136,7 +136,7 @@ class ImportRunner
         $job->update([
             'status' => $status, 'total_rows' => $s['total'], 'created_count' => $s['created'], 'updated_count' => $s['updated'],
             'skipped_count' => $s['skipped'], 'error_count' => $s['error_rows'], 'errors' => $s['errors'],
-            'mapping' => $mapping, 'options' => $options, 'warnings' => $s['warnings'] ?? [], 'finished_at' => in_array($status, ['completed', 'rejected'], true) ? now() : null,
+            'mapping' => $mapping, 'options' => array_merge($job->options ?? [], $options), 'warnings' => $s['warnings'] ?? [], 'finished_at' => in_array($status, ['completed', 'rejected'], true) ? now() : null,
         ]);
 
         return $job;

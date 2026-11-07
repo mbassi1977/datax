@@ -7,7 +7,7 @@ type Def = { key: string; type: 'string' | 'email' | 'color' | 'timezone' | 'enu
 type View = { organization_id: string | null; definitions: Def[]; logo: { url: string | null; inherited_url: string | null } };
 type Org = { id: string; legal_name: string; trade_name?: string | null };
 
-const groups: Record<string, string> = { brand: 'Identidad visual', locale: 'Regional', security: 'Seguridad', mail: 'Correo' };
+const groups: Record<string, string> = { brand: 'Identidad visual', locale: 'Regional', security: 'Seguridad', mail: 'Correo', maps: 'Mapas' };
 const dateLabels: Record<string, string> = { 'dd/mm/yyyy': 'dd/mm/aaaa (31/12/2026)', 'yyyy-mm-dd': 'aaaa-mm-dd (2026-12-31)', 'mm/dd/yyyy': 'mm/dd/aaaa (12/31/2026)' };
 const zones: string[] = (() => { try { return (Intl as any).supportedValuesOf('timeZone') as string[]; } catch { return ['America/Santiago', 'America/Punta_Arenas', 'Pacific/Easter', 'UTC']; } })();
 

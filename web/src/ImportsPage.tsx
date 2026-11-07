@@ -4,17 +4,19 @@ import { can, Modal } from './ResourcePage';
 import { formatDateTime } from './fmt';
 
 type Field = { key: string; label: string; required: boolean; required_unless: string | null };
-type Target = { key: string; label: string; default_org?: boolean; fields: Field[] };
+type Opt = { key: string; label: string; type: 'chain' | 'select' | 'number'; choices?: { v: string; l: string }[] };
+type Target = { key: string; label: string; default_org?: boolean; org_label?: string | null; options?: Opt[]; multi_sheet?: boolean; max_rows?: number; fields: Field[] };
 type Warn = { row: number; source: string; first_name: string | null; last_name: string | null; second_last_name: string | null; confidence: 'medium' | 'low' | 'manual'; note: string | null };
 type Parts = { first_name: string; last_name: string; second_last_name: string };
 type Template = { id: string; name: string };
-type Upload = { id: string; headers: string[]; preview: string[][]; total_rows: number; suggested_mapping: Record<string, number | null>; templates: Template[] };
+type Upload = { id: string; headers: string[]; preview: string[][]; total_rows: number; sheets?: string[]; sheet?: string | null; suggested_mapping: Record<string, number | null>; templates: Template[] };
 type Err = { row: number | null; field: string | null; message: string };
 type Job = {
   id: string; target: string; original_name: string; status: string; total_rows: number;
   created_count: number; updated_count: number; skipped_count: number; error_count: number; errors?: Err[]; warnings?: Warn[]; created_at: string;
 };
 
+const nf0 = (n: number) => n.toLocaleString('es-CL');
 const statusLabel: Record<string, string> = { uploaded: 'Subido', simulated: 'Simulado', completed: 'Completada', rejected: 'Rechazada', failed: 'Fallida' };
 
 export function ImportsPage({ me }: { me: Me }) {
@@ -100,7 +102,7 @@ function StartCard({ targets, onUploaded }: { targets: Target[]; onUploaded: (u:
       <label><span>¿Qué desea importar?</span>
         <select value={t?.key ?? ''} onChange={(e) => setTarget(e.target.value)}>{targets.map((x) => <option key={x.key} value={x.key}>{x.label}</option>)}</select>
       </label>
-      <label><span>Archivo (.xlsx o .csv, máx. 5 MB y 5.000 filas)</span>
+      <label><span>Archivo (.xlsx o .csv, máx. {t?.multi_sheet ? '60 MB' : '5 MB'} y {nf0(t?.max_rows ?? 5000)} filas)</span>
         <input type="file" accept=".xlsx,.csv,.txt" onChange={(e: ChangeEvent<HTMLInputElement>) => setFile(e.target.files?.[0] ?? null)} required />
       </label>
       {mine.length > 0 && (
@@ -119,6 +121,9 @@ function StartCard({ targets, onUploaded }: { targets: Target[]; onUploaded: (u:
 }
 
 function Wizard({ up, orgs, onClose }: { up: Upload & { target: Target; file: string }; orgs: any[]; onClose: () => void }) {
+  const [cur, setCur] = useState({ headers: up.headers, preview: up.preview, total_rows: up.total_rows, sheet: up.sheet ?? null });
+  const [extra, setExtra] = useState<Record<string, string>>({});
+  const [chains, setChains] = useState<{ id: string; name: string }[]>([]);
   const [mapping, setMapping] = useState<Record<string, number | null>>(up.suggested_mapping);
   const [updateExisting, setUpdateExisting] = useState(false);
   const [onError, setOnError] = useState<'skip' | 'abort'>('skip');
@@ -132,6 +137,11 @@ function Wizard({ up, orgs, onClose }: { up: Upload & { target: Target; file: st
   const [error, setError] = useState('');
   const done = job?.status === 'completed' || job?.status === 'rejected';
   const isPeople = !!up.target.default_org;
+  useEffect(() => { if (org && up.target.options?.some((o) => o.type === 'chain')) api<{ id: string; name: string }[]>('GET', `sellout/chains?organization_id=${org}`).then(setChains).catch(() => setChains([])); else setChains([]); }, [org, up.target]);
+  const changeSheet = async (sheet: string) => {
+    setBusy(true); setError('');
+    try { const r = await api<Upload>('POST', `imports/${up.id}/sheet`, { sheet }); setCur({ headers: r.headers, preview: r.preview, total_rows: r.total_rows, sheet: r.sheet ?? sheet }); setMapping(r.suggested_mapping); setJob(null); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  };
 
   const setMap = (field: string, v: string) => { setMapping((m) => ({ ...m, [field]: v === '' ? null : Number(v) })); setJob(null); };
   const missing = up.target.fields.filter((f) => f.required && mapping[f.key] == null && !(f.required_unless && mapping[f.required_unless] != null));
@@ -142,7 +152,7 @@ function Wizard({ up, orgs, onClose }: { up: Upload & { target: Target; file: st
     setBusy(true); setError('');
     try {
       setJob(await api<Job>('POST', `imports/${up.id}/run`, {
-        mode, mapping, update_existing: updateExisting, on_error: onError, organization_id: org || null, save_template_as: mode === 'commit' && saveAs ? saveAs : null,
+        mode, mapping, update_existing: updateExisting, on_error: onError, organization_id: org || null, extra, save_template_as: mode === 'commit' && saveAs ? saveAs : null,
         name_format: nameFormat, name_overrides: overrides,
       }));
       setStale(false);
@@ -155,10 +165,15 @@ function Wizard({ up, orgs, onClose }: { up: Upload & { target: Target; file: st
   return (
     <div className="card pad">
       <div className="bar">
-        <h2>{up.target.label} · {up.file}</h2><span className="muted">{up.total_rows} filas de datos</span>
+        <h2>{up.target.label} · {up.file}</h2><span className="muted">{nf0(cur.total_rows)} filas de datos{cur.sheet && up.sheets?.length ? ` · hoja «${cur.sheet}»` : ''}</span>
         <button onClick={onClose}>{done ? 'Cerrar' : 'Cancelar'}</button>
       </div>
 
+      {up.sheets && up.sheets.length > 1 && (
+        <label style={{ maxWidth: 360, marginBottom: 12 }}><span>Hoja del archivo que desea cargar</span>
+          <select value={cur.sheet ?? ''} onChange={(e) => changeSheet(e.target.value)} disabled={busy || done}>{up.sheets.map((n) => <option key={n} value={n}>{n}</option>)}</select>
+        </label>
+      )}
       <h3>1. Relacione las columnas</h3>
       <div className="table-wrap">
         <table>
@@ -170,10 +185,10 @@ function Wizard({ up, orgs, onClose }: { up: Upload & { target: Target; file: st
                 <td>
                   <select value={mapping[f.key] ?? ''} onChange={(e) => setMap(f.key, e.target.value)} disabled={done}>
                     <option value="">— no importar —</option>
-                    {up.headers.map((h, i) => <option key={i} value={i}>{h || `(columna ${i + 1})`}</option>)}
+                    {cur.headers.map((h, i) => <option key={i} value={i}>{h || `(columna ${i + 1})`}</option>)}
                   </select>
                 </td>
-                <td className="muted">{mapping[f.key] != null ? up.preview[0]?.[mapping[f.key]!] ?? '' : ''}</td>
+                <td className="muted">{mapping[f.key] != null ? cur.preview[0]?.[mapping[f.key]!] ?? '' : ''}</td>
               </tr>
             ))}
           </tbody>
@@ -183,12 +198,21 @@ function Wizard({ up, orgs, onClose }: { up: Upload & { target: Target; file: st
       <h3>2. Opciones</h3>
       <div className="form">
         {isPeople && (
-          <label><span>Organización por defecto (para filas sin empresa)</span>
+          <label><span>{up.target.org_label ?? 'Organización por defecto (para filas sin empresa)'}{up.target.org_label ? ' *' : ''}</span>
             <select value={org} onChange={(e) => { setOrg(e.target.value); setJob(null); }} disabled={done}>
               <option value="">— ninguna —</option>{orgs.map((o) => <option key={o.id} value={o.id}>{o.legal_name}</option>)}
             </select>
           </label>
         )}
+        {up.target.options?.map((o) => (
+          <label key={o.key}><span>{o.label}</span>
+            {o.type === 'number' ? <input type="number" value={extra[o.key] ?? ''} onChange={(e) => { setExtra({ ...extra, [o.key]: e.target.value }); setJob(null); }} disabled={done} />
+              : <select value={extra[o.key] ?? ''} onChange={(e) => { setExtra({ ...extra, [o.key]: e.target.value }); setJob(null); }} disabled={done}>
+                  <option value="">{o.type === 'chain' ? '— la trae el archivo —' : '— por defecto —'}</option>
+                  {o.type === 'chain' ? chains.map((c) => <option key={c.id} value={c.id}>{c.name}</option>) : o.choices?.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+                </select>}
+          </label>
+        ))}
         {hasFullName && (
           <label><span>Orden del nombre completo</span>
             <select value={nameFormat} onChange={(e) => { setNameFormat(e.target.value); setJob(null); }} disabled={done}>
@@ -212,8 +236,8 @@ function Wizard({ up, orgs, onClose }: { up: Upload & { target: Target; file: st
 
       <h3>3. Vista previa del archivo</h3>
       <div className="table-wrap"><table>
-        <thead><tr>{up.headers.map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
-        <tbody>{up.preview.map((r, i) => <tr key={i}>{up.headers.map((_, j) => <td key={j}>{r[j] ?? ''}</td>)}</tr>)}</tbody>
+        <thead><tr>{cur.headers.map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
+        <tbody>{cur.preview.map((r, i) => <tr key={i}>{cur.headers.map((_, j) => <td key={j}>{r[j] ?? ''}</td>)}</tr>)}</tbody>
       </table></div>
 
       {error && <p className="error">{error}</p>}

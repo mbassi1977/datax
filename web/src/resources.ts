@@ -100,7 +100,7 @@ export const resources: Resource[] = [
 ];
 
 // Orden de los grupos del menú (acordeón).
-export const groupOrder = ['Estructura', 'Personas y proyectos', 'Auditoría en terreno', 'Datos', 'Administración'];
+export const groupOrder = ['Estructura', 'Personas y proyectos', 'Auditoría en terreno', 'Sell-out', 'Datos', 'Administración'];
 
 // Pantallas con interfaz propia (no son un CRUD genérico).
 export const pages: NavItem[] = [
@@ -108,6 +108,8 @@ export const pages: NavItem[] = [
   { id: 'field-audits', title: 'Auditorías', perm: 'auditorias', anyAction: ['crear', 'aprobar'], group: 'Auditoría en terreno' },
   { id: 'field-findings', title: 'Hallazgos', perm: 'hallazgos', group: 'Auditoría en terreno' },
   { id: 'field-templates', title: 'Plantillas', perm: 'plantillas_auditoria', group: 'Auditoría en terreno' },
+  { id: 'sellout', title: 'Tablero', perm: 'sellout', group: 'Sell-out' },
+  { id: 'sellout-catalog', title: 'Catálogo', perm: 'sellout', action: 'editar', group: 'Sell-out' },
   { id: 'imports', title: 'Importaciones', perm: 'importaciones', group: 'Datos' },
   { id: 'catalogs', title: 'Catálogos', perm: 'catalogos', group: 'Datos' },
   { id: 'profiles', title: 'Perfiles', perm: 'perfiles', group: 'Administración' },
