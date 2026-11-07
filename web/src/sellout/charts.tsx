@@ -1,5 +1,5 @@
 import { ReactNode, useId, useState } from 'react';
-import { DS, Product, Row, SERIES, chainColor, monthLabel, money, monthly, nf, pct, productColor, prodSet, Filters, periodWindow } from './model';
+import { DS, Product, Row, SERIES, chainColor, lastIdx, monthLabel, money, monthly, nf, pct, productColor, prodSet, Filters, periodWindow } from './model';
 
 // ───────── tooltip ─────────
 export function useTip() {
@@ -19,7 +19,7 @@ const niceMax = (v: number) => { const p = Math.pow(10, Math.floor(Math.log10(v 
 /** Venta mensual por cadena (barras apiladas con tope redondeado). La franja marca el período elegido. */
 export function StackedBars({ ds, R, f }: { ds: DS; R: Row[]; f: Filters }) {
   const { bind, el } = useTip();
-  const W = 1100, H = 300, L = 52, B = 26, T = 8, RR = 6, pw = W - L - RR, ph = H - T - B, n = ds.months.length;
+  const W = 1100, H = 300, L = 52, B = 26, T = 8, RR = 6, pw = W - L - RR, ph = H - T - B, n = lastIdx(ds) + 1;
   const chains = ds.chains.filter((c) => f.chains.has(c.id)), pf = prodSet(f, ds);
   const data = chains.map((c) => { const arr = new Array(n).fill(0); R.forEach((r) => { if (r.s.ch === c.id) monthly(ds, r.s, pf, 0).forEach((v, i) => { arr[i] += v; }); }); return { c, arr }; });
   const tot = new Array(n).fill(0); data.forEach((d) => d.arr.forEach((v, i) => { tot[i] += v; }));
@@ -30,7 +30,7 @@ export function StackedBars({ ds, R, f }: { ds: DS; R: Row[]; f: Filters }) {
       <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Venta mensual por cadena" className="so-svg">
         {[0, 1, 2, 3, 4].map((k) => { const y = T + ph - ph * k / 4; return <g key={k}><line x1={L} x2={W - RR} y1={y} y2={y} className="so-grid" /><text x={L - 6} y={y + 4} textAnchor="end">{nf(mx * k / 4 / 1e6, 0)} M</text></g>; })}
         <rect x={L + a * bw} y={T} width={(b - a + 1) * bw} height={ph} className="so-band" />
-        {ds.months.map((m, i) => {
+        {ds.months.slice(0, n).map((m, i) => {
           const x = L + i * bw + bw * 0.14, w = bw * 0.72, seg = data.filter((d) => d.arr[i] > 0), last = seg[seg.length - 1];
           let y = T + ph;
           const tipBody = <><b>{monthLabel(m)}</b>{data.map((d) => <div key={d.c.id}>{d.c.name}: {money(d.arr[i])}</div>)}<div>Total: {money(tot[i])}</div></>;

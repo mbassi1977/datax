@@ -82,7 +82,7 @@ class SelloutController extends Controller
             }
         }
 
-        return response()->json(['client' => ['id' => $org], 'months' => $months, 'chains' => $chains, 'products' => $products, 'stores' => array_values($stores)]);
+        return response()->json(['client' => ['id' => $org], 'months' => $months, 'sales_to' => $range->b ? substr((string) $range->b, 0, 7) : null, 'chains' => $chains, 'products' => $products, 'stores' => array_values($stores)]);
     }
 
     // ───────────── cadenas ─────────────

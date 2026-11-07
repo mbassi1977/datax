@@ -25,6 +25,9 @@ class SelloutPointTarget extends SelloutTarget
 
     public function normalize(array $raw, ImportContext $ctx): array
     {
+        foreach (['name', 'address', 'commune'] as $k) {
+            isset($raw[$k]) && $raw[$k] = Cast::fixText((string) $raw[$k]);
+        }
         $data = [];
         $errors = [];
         $data['chain'] = $this->chain($ctx, $raw, $errors);

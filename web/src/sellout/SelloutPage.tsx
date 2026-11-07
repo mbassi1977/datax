@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, Me } from '../api';
 import { can } from '../ResourcePage';
-import { DS, Filters, REGION_ORDER, goal, rows } from './model';
+import { DS, Filters, REGION_ORDER, goal, lastIdx, rows } from './model';
 import { FilterBar } from './Filters';
 import { Ctx, AlertasView, EntornoView, MapaView, MetasView, ResumenView } from './Views';
 import { Ficha } from './Ficha';
@@ -38,7 +38,7 @@ function Dashboard({ me, ds, geo, clients, clientId, setClient, tab, onTab }: { 
   const [f, setF] = useState<Filters>(() => ({ chains: new Set(ds.chains.map((c) => c.id)), regions: new Set(), prods: new Set(ds.products.map((p) => p.id)), period: 'm3' }));
   const [sel, setSel] = useState<string | null>(null);
   const [near, setNear] = useState<string | null>(null);
-  const [month, setMonth] = useState(() => { for (let i = ds.months.length - 1; i >= 0; i--) if (ds.stores.some((s) => (s.t[i] ?? 0) > 0)) return i; return Math.max(0, ds.months.length - 1); });
+  const [month, setMonth] = useState(() => { for (let i = lastIdx(ds); i >= 0; i--) if (ds.stores.some((s) => (s.t[i] ?? 0) > 0)) return i; return lastIdx(ds); });
   const { list } = useRequests(clientId);
 
   const tiles: Tiles = me.settings?.maps?.tile_url ? { url: me.settings.maps.tile_url, attribution: me.settings.maps.attribution ?? '' } : null;
@@ -51,9 +51,9 @@ function Dashboard({ me, ds, geo, clients, clientId, setClient, tab, onTab }: { 
   const pend = pendingCount(list, me);
 
   const tabs = (
-    <nav className="so-tabs" role="tablist">
+    <div className="so-tabs" role="tablist">
       {TABS.map(([id, label]) => <button key={id} role="tab" aria-selected={tab === id} onClick={() => { onTab(id); }}>{label}{id === 'solicitudes' && pend ? <span className="so-badge">{pend}</span> : null}</button>)}
-    </nav>
+    </div>
   );
   const empty = ds.stores.length === 0 || ds.months.length === 0;
 

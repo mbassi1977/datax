@@ -28,7 +28,12 @@ class ImportContext
     /** null = todas */
     public function allowed(string $permission): ?array
     {
-        return $this->allowed[$permission] ??= $this->access->allowedOrganizationIds($this->user, $permission, $this->profile);
+        // null = alcance global: es un valor válido, no «sin calcular» (con ??= se consultaba la base en cada fila)
+        if (! array_key_exists($permission, $this->allowed)) {
+            $this->allowed[$permission] = $this->access->allowedOrganizationIds($this->user, $permission, $this->profile);
+        }
+
+        return $this->allowed[$permission];
     }
 
     public function canOnOrg(string $permission, ?string $orgId): bool

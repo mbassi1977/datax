@@ -14,6 +14,19 @@ class Cast
         return trim(preg_replace('/[^a-z0-9]+/', ' ', strtolower(Str::ascii((string) $v))));
     }
 
+    /** Arregla texto con doble codificación («EgaÃ±a» → «Egaña»), frecuente en archivos de cadenas. */
+    public static function fixText(string $v): string
+    {
+        if (preg_match('/[\x{00C2}\x{00C3}][\x{0080}-\x{00BF}]/u', $v)) {
+            $d = @mb_convert_encoding($v, 'ISO-8859-1', 'UTF-8');
+            if ($d !== false && $d !== '' && mb_check_encoding($d, 'UTF-8')) {
+                return $d;
+            }
+        }
+
+        return $v;
+    }
+
     /** Fecha desde "2026-01-31", "31/01/2026", "31-01-26", "31.01.2026" o serial de Excel. Null si es inválida. */
     public static function date(string $v): ?string
     {

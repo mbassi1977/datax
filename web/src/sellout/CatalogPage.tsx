@@ -28,9 +28,9 @@ export function SelloutCatalogPage({ me }: { me: Me }) {
       {error && <p className="error">{error}</p>}
       {!clientId ? <p className="muted">No hay clientes disponibles.</p> : (
         <>
-          <nav className="so-tabs" role="tablist" style={{ marginBottom: 16 }}>
+          <div className="so-tabs" role="tablist" style={{ marginBottom: 16 }}>
             {([['products', 'Productos'], ['chains', 'Cadenas'], ['points', 'Salas']] as const).map(([id, l]) => <button key={id} role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>{l}</button>)}
-          </nav>
+          </div>
           {tab === 'products' && <Products clientId={clientId} edit={edit} />}
           {tab === 'chains' && <Chains clientId={clientId} edit={edit} />}
           {tab === 'points' && <Points clientId={clientId} edit={edit} />}

@@ -119,7 +119,8 @@ class SelloutTest extends TestCase
         $this->as($admin);
         $chain = $this->postJson('/api/v1/sellout/chains?organization_id='.$this->loa->id, ['name' => 'Cencosud'])->assertCreated()->json('id');
         $csv = "Cliente;Codigo;Local;Direccion\nCencosud;J992;Jumbo Chamisero;Av. Chicureo 130, Colina\nCencosud;J501;Jumbo Bilbao;Av. Bilbao 100, Las Condes\n";
-        $this->load('sellout_points', $csv);
+        $this->load('sellout_points', $csv."Cencosud;J777;Plaza EgaÃ±a;Av. Larrain 1, Las Condes\n");
+        $this->assertSame('Plaza Egaña', DB::table('sellout.points')->where('code', 'J777')->value('name'));   // texto con doble codificación
         $p = DB::table('sellout.points')->where('code', 'J992')->first();
         $this->assertSame('commune', $p->geo_quality);
         $this->assertSame('Metropolitana', $p->region);

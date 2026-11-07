@@ -7,7 +7,7 @@ export type Store = {
   id: string; ch: string; code: string; n: string; reg: string | null; com: string | null; lat: number | null; lon: number | null; q: string; ad: string | null;
   d: Record<string, number[][]>; t: Record<string, number>;
 };
-export type DS = { client: { id: string }; months: string[]; chains: Chain[]; products: Product[]; stores: Store[] };
+export type DS = { client: { id: string }; months: string[]; sales_to: string | null; chains: Chain[]; products: Product[]; stores: Store[] };
 
 export type PeriodKey = 'm1' | 'm3' | 'ytd' | 'all';
 export type Filters = { chains: Set<string>; regions: Set<string>; prods: Set<string>; period: PeriodKey };
@@ -27,12 +27,15 @@ export const ZONES: Record<string, string[]> = {
 };
 export const REGION_ORDER = Object.values(ZONES).flat();
 
+/** Último mes con ventas (los meses con solo metas no cuentan como «último mes»). */
+export const lastIdx = (ds: DS) => { const i = ds.sales_to ? ds.months.indexOf(ds.sales_to) : -1; return i >= 0 ? i : ds.months.length - 1; };
+
 export const periodLabels = (ds: DS): Record<PeriodKey, string> => ({
-  m1: monthLabel(ds.months[ds.months.length - 1] ?? '2000-01'), m3: '3 meses', ytd: ds.months.length ? ds.months[ds.months.length - 1].slice(0, 4) : 'Año', all: 'Todo',
+  m1: monthLabel(ds.months[lastIdx(ds)] ?? '2000-01'), m3: '3 meses', ytd: ds.months.length ? ds.months[lastIdx(ds)].slice(0, 4) : 'Año', all: 'Todo',
 });
 
 export function periodWindow(ds: DS, p: PeriodKey): [number, number] {
-  const last = ds.months.length - 1;
+  const last = lastIdx(ds);
   if (p === 'm1') return [last, last];
   if (p === 'm3') return [Math.max(0, last - 2), last];
   if (p === 'ytd') { const y = ds.months[last]?.slice(0, 4); const i = ds.months.findIndex((m) => m.startsWith(y)); return [Math.max(0, i), last]; }

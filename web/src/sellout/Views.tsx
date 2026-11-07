@@ -2,7 +2,7 @@ import { ReactNode, useMemo, useState } from 'react';
 import type L from 'leaflet';
 import { Me } from '../api';
 import {
-  DS, Filters, Row, SEMA_TXT, Store, agg, chainColor, goal, groupBy, hav, inReg, money, monthLabel, nf, pct, periodLabels, periodWindow, prodSet, productColor, rows, sema, sgn, totals, ZONES,
+  DS, Filters, Row, SEMA_TXT, Store, agg, lastIdx, chainColor, goal, groupBy, hav, inReg, money, monthLabel, nf, pct, periodLabels, periodWindow, prodSet, productColor, rows, sema, sgn, totals, ZONES,
 } from './model';
 import { Bars, BarItem, Cans, StackedBars } from './charts';
 import { ChileMap, Geo, MapPoint, NearMap, Tiles, ZoneMap, regionKey } from './MapView';
@@ -173,7 +173,7 @@ const colorOf = (s: 'good' | 'warn' | 'bad') => ({ good: '#12805c', warn: '#d98e
 export function EntornoView({ ctx, nearId, setNear }: { ctx: Ctx; nearId: string | null; setNear: (id: string) => void }) {
   const { ds, f, R } = ctx;
   const [nn, setNn] = useState(5), [same, setSame] = useState(false), [q, setQ] = useState('');
-  const [mi] = useState(() => ds.months.length - 1);
+  const mi = lastIdx(ds);
   const pool = R.map((r) => r.s);
   const base = ds.stores.find((s) => s.id === nearId && pool.some((p) => p.id === s.id)) ?? [...R].filter((r) => r.cur.s > 0 && !/dark|spid/i.test(r.s.n)).sort((a, b) => b.cur.s - a.cur.s)[0]?.s ?? pool[0];
   const [a, b] = periodWindow(ds, f.period), pf = prodSet(f, ds);
@@ -275,7 +275,7 @@ export function MetasView({ ctx, month, setMonth }: { ctx: Ctx; month: number; s
 export function AlertasView({ ctx, month }: { ctx: Ctx; month: number }) {
   const { ds, f } = ctx;
   const [all, setAll] = useState(true);
-  const last = ds.months.length - 1, [a0, b0] = periodWindow(ds, f.period);
+  const last = lastIdx(ds), [a0, b0] = periodWindow(ds, f.period);
   const PF = all ? null : prodSet(f, ds), chains = ds.chains.filter((c) => all || f.chains.has(c.id)), prods = ds.products.filter((p) => all || f.prods.has(p.id));
   const R = all ? ds.stores.map((s) => ({ s, cur: agg(ds, s, a0, b0, null), prev: null as null })) : rows(ds, f);
   const li = (r: { s: Store }, txt: ReactNode) => <li key={r.s.id}><button className="lk" onClick={() => ctx.open(r.s.id)}>{r.s.n} <span className="so-lbl">{chainOf(ds, r.s.ch)}</span></button><span className="num">{txt}</span></li>;
