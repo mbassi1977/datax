@@ -251,4 +251,22 @@ class SelloutTest extends TestCase
         $this->postJson('/api/v1/imports/'.$up->json('id').'/run', $payload + ['mode' => 'commit'])->assertOk()->assertJsonPath('created_count', 1)->assertJsonPath('error_count', 0);
         $this->assertSame(1, DB::table('sellout.points')->count());
     }
+
+    public function test_product_catalog_import_creates_updates_and_validates(): void
+    {
+        $this->as($this->user('admin'));
+        $csv = "Producto;Equivalencias;Color;Unidades por caja;Activo\nMinga Loca;minga, minga loca ipa;#EB6834;12;Sí\nFlor de Truco;flor;eda100;24;No\nMala;x;rojo;12;Sí\nOtra;y;#112233;cero;Sí\n";
+        [$sim, $done] = $this->load('sellout_products', $csv);
+        $this->assertSame([2, 2], [$done['created_count'], $done['error_count']]);
+        $p = \App\Models\SelloutProduct::where('name', 'Minga Loca')->first();
+        $this->assertSame(['minga', 'minga loca ipa'], $p->aliases);
+        $this->assertSame('#eb6834', $p->color);
+        $f = \App\Models\SelloutProduct::where('name', 'Flor de Truco')->first();
+        $this->assertSame([24, false, '#eda100'], [$f->units_per_box, $f->active, $f->color]);
+
+        [, $again] = $this->load('sellout_products', "Producto;Unidades por caja\nMinga Loca;6\n", ['update_existing' => true]);
+        $this->assertSame(1, $again['updated_count']);
+        $this->assertSame(6, $p->refresh()->units_per_box);
+        $this->assertSame(['minga', 'minga loca ipa'], $p->aliases);   // lo no mapeado no se toca
+    }
 }
