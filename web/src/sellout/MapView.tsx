@@ -183,3 +183,47 @@ export function NearMap({ geo, tiles, base, neighbors, onPick, boundsKey }: {
   }, [geo, tiles, boundsKey]);   // eslint-disable-line react-hooks/exhaustive-deps
   return <div ref={el} className="so-map" style={{ height: 460 }} role="application" aria-label="Mapa del entorno de la sala" />;
 }
+
+/** Editor de ubicación: el punto se arrastra, o se toca el mapa para colocarlo. Los cambios salen por onChange con 6 decimales. */
+export function PointPicker({ geo, tiles, lat, lon, onChange, height = 340 }: {
+  geo: Geo | null; tiles: Tiles; lat: number | null; lon: number | null; onChange: (lat: number, lon: number) => void; height?: number;
+}) {
+  const el = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const pin = useRef<L.Marker | null>(null);
+  const onChangeRef = useRef(onChange); onChangeRef.current = onChange;
+  const start = useRef({ lat, lon });
+  const round = (v: number) => Math.round(v * 1e6) / 1e6;
+
+  useEffect(() => {
+    if (!el.current) return;
+    const has = start.current.lat != null && start.current.lon != null;
+    const m = L.map(el.current, { scrollWheelZoom: true, zoomSnap: 0.5, minZoom: 3 });
+    m.attributionControl.setPrefix(false);
+    m.setView(has ? [start.current.lat!, start.current.lon!] : [-33.45, -70.66], has ? 17 : 11);
+    if (tiles) L.tileLayer(tiles.url, { maxZoom: 19, attribution: tiles.attribution }).addTo(m);
+    if (geo) {
+      L.geoJSON(geo.comunas, { style: () => ({ color: themeColor('--border', '#c3cddb'), weight: 1, opacity: 0.8, fillColor: themeColor('--surface', '#fff'), fillOpacity: tiles ? 0 : 1 }), onEachFeature: (f, l) => l.bindTooltip(String(f.properties.Comuna), { sticky: true }) }).addTo(m);
+    }
+    const icon = L.divIcon({ className: 'so-pin', html: '<span></span>', iconSize: [24, 24], iconAnchor: [12, 24] });
+    const mk = L.marker(has ? [start.current.lat!, start.current.lon!] : m.getCenter(), { icon, draggable: true, autoPan: true, opacity: has ? 1 : 0.6 }).addTo(m);
+    const emit = (ll: L.LatLng) => onChangeRef.current(round(ll.lat), round(ll.lng));
+    mk.on('dragend', () => { mk.setOpacity(1); emit(mk.getLatLng()); });
+    m.on('click', (e: L.LeafletMouseEvent) => { mk.setLatLng(e.latlng); mk.setOpacity(1); emit(e.latlng); });
+    mapRef.current = m; pin.current = mk;
+    const t = setTimeout(() => m.invalidateSize(), 50);
+    return () => { clearTimeout(t); m.remove(); mapRef.current = null; pin.current = null; };
+  }, [geo, tiles]);
+
+  // Si se escriben las coordenadas a mano, el punto se mueve y el mapa lo sigue.
+  useEffect(() => {
+    const m = mapRef.current, mk = pin.current;
+    if (!m || !mk || lat == null || lon == null || !Number.isFinite(lat) || !Number.isFinite(lon)) return;
+    const cur = mk.getLatLng();
+    if (Math.abs(cur.lat - lat) < 1e-7 && Math.abs(cur.lng - lon) < 1e-7) return;
+    mk.setLatLng([lat, lon]); mk.setOpacity(1);
+    if (!m.getBounds().contains([lat, lon])) m.setView([lat, lon], Math.max(m.getZoom(), 15));
+  }, [lat, lon]);
+
+  return <div ref={el} className="so-map picker" style={{ height }} role="application" aria-label="Mapa para ubicar la sala" />;
+}

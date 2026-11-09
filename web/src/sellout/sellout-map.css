@@ -51,3 +51,7 @@
 .so-fhead { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .so-side .av { background: transparent; width: auto; min-width: 36px; height: auto; display: flex; align-items: center; }
 .so-chip .so-logo { margin: -3px 0 -3px -6px; }
+
+/* Editor de ubicación de una sala */
+.so-map.picker { border: 1px solid var(--border); border-radius: 8px; }
+.so-pin span { display: block; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; background: var(--primary); border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.5); transform: rotate(-45deg); cursor: grab; }

@@ -3,7 +3,9 @@ import { api, ApiError, Me, upload } from '../api';
 import { can, Modal } from '../ResourcePage';
 import { SERIES } from './model';
 import { SketchCan } from './charts';
+import { Geo, PointPicker, Tiles, loadGeo } from './MapView';
 import './sellout.css';
+import './sellout-map.css';
 
 type Product = { id: string; name: string; aliases: string[]; color: string | null; units_per_box: number; active: boolean; image: string | null };
 type Chain = { id: string; name: string; color: string | null };
@@ -19,6 +21,7 @@ export function SelloutCatalogPage({ me }: { me: Me }) {
   const [error, setError] = useState('');
   useEffect(() => { api<{ id: string; name: string }[]>('GET', 'sellout/clients').then((c) => { setClients(c); setClientId((p) => p || c[0]?.id || ''); }).catch((e) => setError(e.message)); }, []);
   const edit = can(me, 'sellout', 'editar');
+  const tiles: Tiles = me.settings?.maps?.tile_url ? { url: me.settings.maps.tile_url, attribution: me.settings.maps.attribution ?? '' } : null;
 
   return (
     <section className="so">
@@ -33,7 +36,7 @@ export function SelloutCatalogPage({ me }: { me: Me }) {
           </div>
           {tab === 'products' && <Products clientId={clientId} edit={edit} />}
           {tab === 'chains' && <Chains clientId={clientId} edit={edit} />}
-          {tab === 'points' && <Points clientId={clientId} edit={edit} />}
+          {tab === 'points' && <Points clientId={clientId} edit={edit} tiles={tiles} />}
         </>
       )}
     </section>
@@ -177,7 +180,7 @@ function BannerAdd({ onAdd }: { onAdd: (name: string) => void }) {
   );
 }
 
-function Points({ clientId, edit }: { clientId: string; edit: boolean }) {
+function Points({ clientId, edit, tiles }: { clientId: string; edit: boolean; tiles: Tiles }) {
   const [page, setPage] = useState<{ data: Point[]; current_page: number; last_page: number; total: number } | null>(null);
   const [chains, setChains] = useState<Chain[]>([]);
   const [q, setQ] = useState('');
@@ -203,28 +206,46 @@ function Points({ clientId, edit }: { clientId: string; edit: boolean }) {
           <td className="r">{edit && <button onClick={() => setEditing(p)}>Editar</button>}</td></tr>)}
           {page && page.data.length === 0 && <tr><td colSpan={6} className="muted">Sin salas.</td></tr>}</tbody></table></div>
       {page && page.last_page > 1 && <div className="pager"><button disabled={n <= 1} onClick={() => setN(n - 1)}>← Anterior</button><span className="muted">Página {page.current_page} de {page.last_page} · {page.total} salas</span><button disabled={n >= page.last_page} onClick={() => setN(n + 1)}>Siguiente →</button></div>}
-      {editing && <PointForm point={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
+      {editing && <PointForm point={editing} tiles={tiles} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} />}
     </>
   );
 }
 
-function PointForm({ point, onClose, onSaved }: { point: Point; onClose: () => void; onSaved: () => void }) {
-  const [name, setName] = useState(point.name), [address, setAddress] = useState(point.address ?? ''), [lat, setLat] = useState(point.latitude?.toString() ?? ''), [lon, setLon] = useState(point.longitude?.toString() ?? '');
+function PointForm({ point, tiles, onClose, onSaved }: { point: Point; tiles: Tiles; onClose: () => void; onSaved: () => void }) {
+  const [name, setName] = useState(point.name), [address, setAddress] = useState(point.address ?? '');
+  const [lat, setLat] = useState<string>(point.latitude?.toString() ?? ''), [lon, setLon] = useState<string>(point.longitude?.toString() ?? '');
   const [status, setStatus] = useState(point.status), [error, setError] = useState('');
+  const [geo, setGeo] = useState<Geo | null>(null);
+  const [moved, setMoved] = useState(false);
+  useEffect(() => { loadGeo().then(setGeo); }, []);
+  const la = lat.trim() === '' ? null : Number(lat), lo = lon.trim() === '' ? null : Number(lon);
+  const valid = la !== null && lo !== null && Number.isFinite(la) && Number.isFinite(lo) && Math.abs(la) <= 90 && Math.abs(lo) <= 180;
+
   const save = async (e: FormEvent) => {
     e.preventDefault(); setError('');
-    try { await api('PUT', `sellout/points/${point.id}`, { name, address: address || null, ...(lat && lon ? { latitude: +lat, longitude: +lon } : {}), status }); onSaved(); } catch (e2) { const ae = e2 as ApiError; setError(Object.values(ae.errors ?? {}).flat().join(' ') || ae.message); }
+    try { await api('PUT', `sellout/points/${point.id}`, { name, address: address || null, ...(valid ? { latitude: la, longitude: lo } : {}), status }); onSaved(); } catch (e2) { const ae = e2 as ApiError; setError(Object.values(ae.errors ?? {}).flat().join(' ') || ae.message); }
   };
   return (
     <Modal title={`Editar sala ${point.code}`} onClose={onClose}>
       <form className="form" onSubmit={save}>
         <label><span>Nombre</span><input value={name} onChange={(e) => setName(e.target.value)} required /></label>
         <label><span>Dirección</span><input value={address} onChange={(e) => setAddress(e.target.value)} /></label>
-        <div style={{ display: 'flex', gap: 12 }}><label style={{ flex: 1 }}><span>Latitud</span><input value={lat} onChange={(e) => setLat(e.target.value)} placeholder="-33.4172" inputMode="decimal" /></label><label style={{ flex: 1 }}><span>Longitud</span><input value={lon} onChange={(e) => setLon(e.target.value)} placeholder="-70.6063" inputMode="decimal" /></label></div>
-        <p className="hint">Con latitud y longitud la ubicación queda como «Exacta». Puede copiarlas desde el botón derecho en un mapa.</p>
-        <label><span>Estado</span><select value={status} onChange={(e) => setStatus(e.target.value)}><option value="active">Activa</option><option value="inactive">Inactiva (no aparece en el tablero)</option></select></label>
+        <div className="wide">
+          <span className="muted" style={{ fontSize: 13 }}>Ubicación en el mapa</span>
+          <p className="hint" style={{ margin: '2px 0 6px' }}>Arrastre el punto o toque el mapa donde está la sala. {tiles ? 'Acerque con + / − o la rueda para ubicarla en su calle.' : 'Esta vista no muestra calles; acerque para mayor precisión.'}</p>
+          <PointPicker geo={geo} tiles={tiles} lat={valid ? la : null} lon={valid ? lo : null}
+            onChange={(a, b) => { setLat(String(a)); setLon(String(b)); setMoved(true); }} />
+          <div className="so-maphead" style={{ marginTop: 8, marginBottom: 0 }}>
+            <span className={`so-pill ${moved ? 'good' : point.geo_quality === 'exact' ? 'good' : 'warn'}`}>{moved ? 'Quedará exacta al guardar' : point.geo_quality === 'exact' ? 'Ubicación exacta' : point.geo_quality === 'none' ? 'Sin ubicación todavía' : 'Ubicación aproximada (por comuna)'}</span>
+          </div>
+        </div>
+        <div className="wide" style={{ display: 'flex', gap: 12 }}>
+          <label style={{ flex: 1 }}><span>Latitud</span><input value={lat} onChange={(e) => { setLat(e.target.value); setMoved(true); }} placeholder="-33.4172" inputMode="decimal" /></label>
+          <label style={{ flex: 1 }}><span>Longitud</span><input value={lon} onChange={(e) => { setLon(e.target.value); setMoved(true); }} placeholder="-70.6063" inputMode="decimal" /></label>
+        </div>
+        <label className="wide"><span>Estado</span><select value={status} onChange={(e) => setStatus(e.target.value)}><option value="active">Activa</option><option value="inactive">Inactiva (no aparece en el tablero)</option></select></label>
         {error && <p className="error">{error}</p>}
-        <div className="buttons"><button type="button" onClick={onClose}>Cancelar</button><button className="primary">Guardar</button></div>
+        <div className="wide buttons"><button type="button" onClick={onClose}>Cancelar</button><button className="primary">Guardar</button></div>
       </form>
     </Modal>
   );
