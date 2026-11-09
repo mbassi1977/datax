@@ -12,7 +12,8 @@ export type Geo = { comunas: any; regiones: any };
 let geoPromise: Promise<Geo> | null = null;
 export const loadGeo = () => (geoPromise ??= Promise.all([import('./geo/comunas.json'), import('./geo/regiones.json')]).then(([c, r]) => ({ comunas: (c as any).default ?? c, regiones: (r as any).default ?? r })));
 
-export type MapPoint = { id: string; lat: number; lon: number; v: number; color?: string; tip: string; approx?: boolean; label?: string; r?: number };
+export type Popup = { title: string; sub: string; kpis: { l: string; v: string; cls?: string }[]; big: string; bigNote: string };
+export type MapPoint = { id: string; lat: number; lon: number; v: number; color?: string; tip: string; approx?: boolean; label?: string; r?: number; popup?: Popup };
 export type Tiles = { url: string; attribution: string } | null;
 
 const css = (n: string) => getComputedStyle(document.documentElement).getPropertyValue(n).trim() || undefined;
@@ -23,55 +24,105 @@ const themeColor = (name: string, fallback: string) => { const v = css(name); re
 type Bounds = [[number, number], [number, number]];
 const views = new Map<string, { key: string; c: L.LatLng; z: number }>();   // vista recordada por mapa
 
-/** Mapa de zona: comunas, calor por indicador y salas clicables. */
-export function ZoneMap({ geo, tiles, points, heat, bounds, focusKey, highlight, onPick, onMove, height = 520 }: {
-  geo: Geo | null; tiles: Tiles; points: MapPoint[]; heat: boolean; bounds: Bounds; focusKey: string; highlight?: string | null;
+const nrmName = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** Ficha emergente de una sala sobre el mapa (como en las herramientas de trade marketing): indicadores y enlace a «más detalles». */
+function popupEl(p: MapPoint, onDetails: (id: string) => void): HTMLElement {
+  const d = p.popup!, root = document.createElement('div'); root.className = 'so-pop-card';
+  const esc = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+  root.innerHTML = `<div class="ph"><b>${esc(d.title)}</b><span>${esc(d.sub)}</span></div>
+    <div class="pk">${d.kpis.map((k) => `<div><b class="${k.cls ?? ''}">${esc(k.v)}</b><span>${esc(k.l)}</span></div>`).join('')}</div>
+    <div class="pb"><strong>${esc(d.big)}</strong><span>${esc(d.bigNote)}</span></div>
+    <button type="button" class="pm">más detalles</button>`;
+  root.querySelector('.pm')!.addEventListener('click', () => onDetails(p.id));
+  return root;
+}
+
+/** Mapa de zona: comunas, burbujas con semáforo (o calor), ficha emergente, y enfoque desde la lista lateral. */
+export function ZoneMap({ geo, tiles, points, mode, bounds, focusKey, hover, focus, communes, showMarkers, onPick, onMove, height = 620 }: {
+  geo: Geo | null; tiles: Tiles; points: MapPoint[]; mode: 'bubbles' | 'heat'; bounds: Bounds; focusKey: string; hover?: string | null;
+  focus: { id: string; n: number } | null; communes: Record<string, string> | null; showMarkers: boolean;
   onPick: (id: string) => void; onMove?: (b: L.LatLngBounds) => void; height?: number;
 }) {
   const el = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const layer = useRef<L.LayerGroup | null>(null);
+  const markers = useRef(new Map<string, L.CircleMarker>());
   const onPickRef = useRef(onPick); onPickRef.current = onPick;
   const onMoveRef = useRef(onMove); onMoveRef.current = onMove;
+  const boundsRef = useRef(bounds); boundsRef.current = bounds;
+  const keyRef = useRef(focusKey); keyRef.current = focusKey;
 
+  // 1) El mapa y sus capas base viven mientras no cambien los datos geográficos ni la capa de calles.
   useEffect(() => {
     if (!el.current || !geo) return;
     const m = L.map(el.current, { preferCanvas: true, scrollWheelZoom: false, dragging: !L.Browser.mobile, zoomSnap: 0.25, zoomDelta: 0.5, minZoom: 3 });
     m.attributionControl.setPrefix(false);
     const saved = views.get('zone');
-    if (saved && saved.key === focusKey) m.setView(saved.c, saved.z, { animate: false }); else m.fitBounds(bounds, { padding: [14, 14], animate: false, maxZoom: 15 });
-    m.on('moveend', () => { views.set('zone', { key: focusKey, c: m.getCenter(), z: m.getZoom() }); onMoveRef.current?.(m.getBounds()); });
+    if (saved && saved.key === keyRef.current) m.setView(saved.c, saved.z, { animate: false }); else m.fitBounds(boundsRef.current, { padding: [14, 14], animate: false, maxZoom: 15 });
+    m.on('moveend', () => { views.set('zone', { key: keyRef.current, c: m.getCenter(), z: m.getZoom() }); onMoveRef.current?.(m.getBounds()); });
     m.on('click focus', () => m.scrollWheelZoom.enable()); m.on('mouseout blur', () => m.scrollWheelZoom.disable());
-
     if (tiles) L.tileLayer(tiles.url, { maxZoom: 19, attribution: tiles.attribution }).addTo(m);
-    const coast = themeColor('--border', '#c3cddb'), land = themeColor('--surface', '#ffffff');
-    L.geoJSON(geo.comunas, {
-      style: () => ({ color: coast, weight: tiles ? 1 : 0.8, opacity: tiles ? 0.7 : 1, fillColor: land, fillOpacity: tiles ? 0 : 1 }),
-      onEachFeature: (f, l) => l.bindTooltip(String(f.properties.Comuna), { sticky: true }),
-    }).addTo(m);
-
-    const heatColor = themeColor('--primary', '#2a78d6');
-    if (heat && points.length) {
-      const mx = Math.max(...points.map((p) => p.v), 1e-9), [r, g, b] = hex(heatColor);
-      L.heatLayer(points.map((p) => [p.lat, p.lon, 0.15 + 0.85 * Math.sqrt(p.v / mx)]), {
-        radius: 26, blur: 22, maxZoom: 13, max: 1, minOpacity: 0.25, gradient: { 0.25: `rgba(${r},${g},${b},.35)`, 0.6: `rgba(${r},${g},${b},.7)`, 1: `rgba(${r},${g},${b},1)` },
-      }).addTo(m);
-    }
-    points.forEach((p) => {
-      const hi = highlight === p.id, c = p.color ?? heatColor;
-      const mk = L.circleMarker([p.lat, p.lon], { radius: hi ? 10 : p.r ?? 5, fillColor: c, fillOpacity: p.approx && !hi ? 0.55 : 1, color: hi ? themeColor('--primary', '#2a78d6') : '#ffffff', weight: hi ? 3 : 1.2 }).addTo(m);
-      mk.bindTooltip(p.tip, { direction: 'top', offset: [0, -4] });
-      mk.on('click', () => onPickRef.current(p.id));
-    });
+    mapRef.current = m; layer.current = L.layerGroup().addTo(m);
     onMoveRef.current?.(m.getBounds());
     const t = setTimeout(() => m.invalidateSize(), 0);
-    return () => { clearTimeout(t); m.remove(); };
-  }, [geo, tiles, points, heat, focusKey, highlight, bounds]);
+    return () => { clearTimeout(t); m.remove(); mapRef.current = null; layer.current = null; markers.current.clear(); };
+  }, [geo, tiles]);
+
+  // 2) Cuando cambia el foco (región, sala o zona elegida) se reencuadra; al cambiar solo los datos se conserva la vista.
+  useEffect(() => {
+    const m = mapRef.current; if (!m) return;
+    const saved = views.get('zone');
+    if (!saved || saved.key !== focusKey) m.fitBounds(bounds, { padding: [14, 14], animate: true, maxZoom: 15 });
+  }, [focusKey, bounds, geo, tiles]);
+
+  // 3) Comunas, calor y burbujas se rehacen cuando cambian los datos.
+  useEffect(() => {
+    const m = mapRef.current, g = layer.current; if (!m || !g || !geo) return;
+    g.clearLayers(); markers.current.clear();
+    const coast = themeColor('--border', '#c3cddb'), land = themeColor('--surface', '#ffffff');
+    L.geoJSON(geo.comunas, {
+      style: (f) => { const c = communes?.[nrmName(String(f!.properties.Comuna))]; return { color: coast, weight: tiles ? 1 : 0.8, opacity: tiles ? 0.7 : 1, fillColor: c ?? land, fillOpacity: c ? 0.45 : tiles ? 0 : 1 }; },
+      onEachFeature: (f, l) => l.bindTooltip(String(f.properties.Comuna), { sticky: true }),
+    }).addTo(g);
+    const accent = themeColor('--primary', '#2a78d6');
+    if (mode === 'heat' && points.length) {
+      const mx = Math.max(...points.map((p) => p.v), 1e-9), [r, gg, b] = hex(accent);
+      L.heatLayer(points.map((p) => [p.lat, p.lon, 0.15 + 0.85 * Math.sqrt(p.v / mx)]), { radius: 26, blur: 22, maxZoom: 13, max: 1, minOpacity: 0.25, gradient: { 0.25: `rgba(${r},${gg},${b},.35)`, 0.6: `rgba(${r},${gg},${b},.7)`, 1: `rgba(${r},${gg},${b},1)` } }).addTo(g);
+    }
+    if (showMarkers) {
+      [...points].sort((a, b) => (b.r ?? 5) - (a.r ?? 5)).forEach((p) => {      // las grandes atrás, las chicas encima
+        const bubble = mode === 'bubbles';
+        const mk = L.circleMarker([p.lat, p.lon], { radius: bubble ? p.r ?? 6 : 4, fillColor: p.color ?? accent, fillOpacity: bubble ? (p.approx ? 0.5 : 0.78) : 1, color: '#ffffff', weight: 1.2 }).addTo(g);
+        mk.bindTooltip(p.tip, { direction: 'top', offset: [0, -4] });
+        if (p.popup) mk.bindPopup(() => popupEl(p, (id) => onPickRef.current(id)), { className: 'so-popup', maxWidth: 270, minWidth: 230, autoPanPadding: [30, 30] });
+        else mk.on('click', () => onPickRef.current(p.id));
+        markers.current.set(p.id, mk);
+      });
+    }
+  }, [geo, tiles, points, mode, communes, showMarkers]);
+
+  // 4) Resaltado al pasar el mouse por la lista.
+  useEffect(() => {
+    const accent = themeColor('--primary', '#2a78d6');
+    markers.current.forEach((mk, id) => { const on = id === hover; mk.setStyle({ color: on ? accent : '#ffffff', weight: on ? 3.5 : 1.2 }); on && mk.bringToFront(); });
+  }, [hover, points, showMarkers, mode]);
+
+  // 5) Elegir una sala en la lista: el mapa se acerca y abre su ficha emergente.
+  useEffect(() => {
+    if (!focus || !mapRef.current) return;
+    const mk = markers.current.get(focus.id); if (!mk) return;
+    mapRef.current.flyTo(mk.getLatLng(), Math.max(mapRef.current.getZoom(), 13), { duration: 0.6 });
+    const t = setTimeout(() => mk.openPopup(), 650);
+    return () => clearTimeout(t);
+  }, [focus]);
 
   return <div ref={el} className="so-map" style={{ height }} role="application" aria-label="Mapa interactivo" />;
 }
 
 /** Mapa de Chile por regiones (colores por valor). Tocar una región la agrega o quita del filtro. */
-export function ChileMap({ geo, values, selected, format, onPick, view }: {
-  geo: Geo | null; values: Record<string, number>; selected: Set<string>; format: (v: number) => string; onPick: (region: string) => void; view: L.LatLngBounds | null;
+export function ChileMap({ geo, values, selected, format, onPick, view, height }: {
+  geo: Geo | null; values: Record<string, number>; selected: Set<string>; format: (v: number) => string; onPick: (region: string) => void; view: L.LatLngBounds | null; height?: number;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const onPickRef = useRef(onPick); onPickRef.current = onPick;
@@ -96,7 +147,7 @@ export function ChileMap({ geo, values, selected, format, onPick, view }: {
   }, [geo, values, selected, format]);
 
   useEffect(() => { if (view && rect.current) rect.current.setBounds(view); }, [view, geo, values, selected]);
-  return <div ref={el} className="so-map chile" role="application" aria-label="Mapa político de Chile por región" />;
+  return <div ref={el} className="so-map chile" style={height ? { height } : undefined} role="application" aria-label="Mapa político de Chile por región" />;
 }
 
 const REGION_KEYS: [string, string][] = [['arica y parinacota', 'Arica y Parinacota'], ['tarapaca', 'Tarapacá'], ['antofagasta', 'Antofagasta'], ['atacama', 'Atacama'], ['coquimbo', 'Coquimbo'], ['valparaiso', 'Valparaíso'], ['metropolitana', 'Metropolitana'], ['o higgins', "O'Higgins"], ['maule', 'Maule'], ['nuble', 'Ñuble'], ['bio', 'Biobío'], ['araucania', 'Araucanía'], ['los rios', 'Los Ríos'], ['los lagos', 'Los Lagos'], ['aysen', 'Aysén'], ['magallanes', 'Magallanes']];

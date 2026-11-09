@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 import type L from 'leaflet';
 import { Me } from '../api';
 import {
@@ -84,13 +84,34 @@ const ZOOMS: Record<string, { l: string; b: [[number, number], [number, number]]
 };
 type Metric = 'sales' | 'units' | 'margin' | 'meta';
 const METRICS: Record<Metric, string> = { sales: 'Venta', units: 'Cajas', margin: 'Margen', meta: 'Cumplimiento de meta' };
+type SortKey = 'weight' | 'sales' | 'growth' | 'name';
+const SORTS: Record<SortKey, string> = { weight: 'Peso', sales: 'Venta', growth: 'Crecimiento', name: 'Nombre' };
+const GREY = '#9aa3b5', RED = '#c43129', AMBER = '#eda100', GREEN = '#12805c';
+const nrmName = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const PAGE = 8;
+/** Algunos archivos traen el código pegado al nombre («J659-JUMBO …»): en pantalla se muestra una sola vez. */
+const cleanName = (s: Store) => s.n.replace(/^[A-Za-z]{0,2}\d+[-\s]+/, '');
+
+type Item = { id: string; store: Store; name: string; addr: string; lat: number; lon: number; value: number; valueTxt: string; growth: number | null; weight: number; color: string; approx: boolean; sales: number; boxes: number; metaPct: number | null };
 
 export function MapaView({ ctx, metaMonth }: { ctx: Ctx; metaMonth: number }) {
   const { ds, f, R } = ctx;
   const [metric, setMetric] = useState<Metric>('sales');
+  const [mode, setMode] = useState<'bubbles' | 'heat'>('bubbles');
+  const [th, setTh] = useState({ red: 0, yellow: 3 });                      // semáforo de crecimiento, en %
   const [zoom, setZoom] = useState<string>('auto');
   const [view, setView] = useState<L.LatLngBounds | null>(null);
+  const [showMarkers, setShowMarkers] = useState(true);
+  const [zones, setZones] = useState<'none' | 'commune'>('none');
+  const [sort, setSort] = useState<{ by: SortKey; desc: boolean }>({ by: 'weight', desc: true });
+  const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [hover, setHover] = useState<string | null>(null);
+  const [focus, setFocus] = useState<{ id: string; n: number } | null>(null);
+  const [ctrlOpen, setCtrlOpen] = useState(false);
+  const [chileOpen, setChileOpen] = useState(true);
   const selStore = ctx.sel ? ds.stores.find((s) => s.id === ctx.sel) : null;
+  const T = useMemo(() => totals(R), [R]);
 
   // Autofoco: la sala abierta, o las regiones elegidas, o el Gran Santiago.
   const regionBounds = (): [[number, number], [number, number]] | null => {
@@ -104,61 +125,149 @@ export function MapaView({ ctx, metaMonth }: { ctx: Ctx; metaMonth: number }) {
   else if (selStore?.lat != null) { bounds = [[selStore.lat - 0.055, selStore.lon! - 0.07], [selStore.lat + 0.055, selStore.lon! + 0.07]]; zoneLabel = selStore.n; key = 'sel:' + selStore.id; }
   else { const rb = regionBounds(); if (rb) { bounds = rb; zoneLabel = f.regions.size === 1 ? [...f.regions][0] : `${f.regions.size} regiones`; key = 'reg:' + [...f.regions].join(','); } }
 
-  const points: MapPoint[] = useMemo(() => {
+  const semaphore = (g: number | null) => (g === null ? GREY : g * 100 < th.red ? RED : g * 100 < th.yellow ? AMBER : GREEN);
+
+  // Una ficha por sala con lo que muestran el mapa y la lista: valor, crecimiento contra el año anterior y peso en el total.
+  const items: Item[] = useMemo(() => {
+    const base = (s: Store, cur: { s: number; bx: number }, prev: { s: number } | null | undefined, value: number, valueTxt: string, color: string, metaPct: number | null): Item => ({
+      id: s.id, store: s, name: `${s.code} ${cleanName(s)}`, addr: s.ad ?? s.com ?? '', lat: s.lat!, lon: s.lon!, value, valueTxt, color, approx: s.q !== 'exact' && s.q !== 'commune', sales: cur.s, boxes: cur.bx, metaPct,
+      growth: prev && prev.s > 0 ? cur.s / prev.s - 1 : null, weight: T.s > 0 ? cur.s / T.s : 0,
+    });
     if (metric === 'meta') {
       return ds.stores.filter((s) => f.chains.has(s.ch) && inReg(f, s.reg) && s.lat != null).flatMap((s) => {
         const g = goal(ds, s, metaMonth); if (!g) return [];
-        const col = `var(--so-${sema(g.pct)})`;
-        return [{ id: s.id, lat: s.lat!, lon: s.lon!, v: g.pct, color: colorOf(sema(g.pct)), approx: s.q !== 'exact' && s.q !== 'commune', tip: `<b>${esc(s.n)}</b><br>${esc(chainOf(ds, s.ch))}${s.ad ? '<br>' + esc(s.ad) : ''}<br>Meta ${nf(g.meta, 1)} cajas · real ${nf(g.real, 1)} · <b>${pct(g.pct)}</b>`, label: col }];
+        const cur = agg(ds, s, metaMonth, metaMonth, null);
+        return [base(s, cur, null, g.pct, pct(g.pct), colorOf(sema(g.pct)), g.pct)];
       });
     }
     return R.filter((r) => r.cur.s > 0 && r.s.lat != null).map((r) => {
-      const v = metric === 'sales' ? r.cur.s : metric === 'units' ? r.cur.bx : r.cur.s > 0 ? (r.cur.s - r.cur.c) / r.cur.s : 0;
+      const margin = (r.cur.s - r.cur.c) / r.cur.s, v = metric === 'sales' ? r.cur.s : metric === 'units' ? r.cur.bx : margin;
       const txt = metric === 'sales' ? money(v) : metric === 'units' ? `${nf(v, 0)} cajas` : pct(v, 1);
-      return { id: r.s.id, lat: r.s.lat!, lon: r.s.lon!, v: Math.max(v, 0), approx: r.s.q !== 'exact' && r.s.q !== 'commune', tip: `<b>${esc(r.s.n)}</b><br>${esc(chainOf(ds, r.s.ch))} · ${esc(r.s.reg ?? '')}${r.s.ad ? '<br>' + esc(r.s.ad) : ''}<br>${txt} · ${money(r.cur.s)}` };
+      const it = base(r.s, r.cur, r.prev, v, txt, GREY, null);
+      it.color = semaphore(it.growth);
+      return it;
     });
-  }, [ds, f, R, metric, metaMonth]);
+  }, [ds, f, R, metric, metaMonth, th, T.s]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const points: MapPoint[] = useMemo(() => {
+    const mx = Math.max(...items.map((i) => (metric === 'margin' ? i.sales : metric === 'meta' ? i.boxes : i.value)), 1e-9);
+    return items.map((i) => {
+      const size = metric === 'margin' ? i.sales : metric === 'meta' ? i.boxes : i.value;
+      return {
+        id: i.id, lat: i.lat, lon: i.lon, v: Math.max(i.value, 0), color: i.color, approx: i.approx, r: 4.5 + 15 * Math.sqrt(Math.max(size, 0) / mx),
+        tip: `<b>${esc(i.name)}</b><br>${esc(chainOf(ds, i.store.ch))}${i.addr ? '<br>' + esc(i.addr) : ''}<br>${i.valueTxt}${i.approx ? ' · ubicación aproximada' : ''}`,
+        popup: { title: i.name, sub: `${chainOf(ds, i.store.ch)}${i.addr ? ' · ' + i.addr : ''}`, big: i.valueTxt, bigNote: metric === 'meta' ? 'cumplimiento de la meta' : METRICS[metric].toLowerCase() + ' del período',
+          kpis: metric === 'meta'
+            ? [{ l: 'Venta', v: money(i.sales) }, { l: 'Cajas', v: nf(i.boxes, 1) }, { l: 'Peso', v: pct(i.weight, 1) }]
+            : [{ l: 'Crec.', v: i.growth === null ? '—' : sgn(i.growth), cls: i.growth === null ? '' : i.growth >= 0 ? 'up' : 'down' }, { l: 'Peso', v: pct(i.weight, 1) }, { l: 'Cajas', v: nf(i.boxes, 0) }] },
+      };
+    });
+  }, [items, metric, ds]);
+
+  // Coloreado por comuna (selector de zonas): crecimiento de la venta de las salas de cada comuna.
+  const communes = useMemo(() => {
+    if (zones !== 'commune') return null;
+    const m = new Map<string, { c: number; p: number }>();
+    items.forEach((i) => { const k = nrmName(i.store.com ?? ''); if (!k) return; const o = m.get(k) ?? { c: 0, p: 0 }; o.c += i.sales; const r = R.find((x) => x.s.id === i.id); if (r?.prev && r.prev.s > 0) { o.p += r.prev.s; } else { o.c -= i.sales; } m.set(k, o); });
+    const out: Record<string, string> = {};
+    m.forEach((v, k) => { out[k] = semaphore(v.p > 0 ? v.c / v.p - 1 : null); });
+    return out;
+  }, [zones, items, R, th]);   // eslint-disable-line react-hooks/exhaustive-deps
 
   const regionVals = useMemo(() => {
     const sum: Record<string, number> = {}, cnt: Record<string, number> = {};
-    const src = metric === 'meta' ? points.map((p) => ({ reg: ds.stores.find((s) => s.id === p.id)?.reg ?? '', v: p.v })) : points.map((p) => ({ reg: ds.stores.find((s) => s.id === p.id)?.reg ?? '', v: p.v }));
-    src.forEach((p) => { sum[p.reg] = (sum[p.reg] ?? 0) + p.v; cnt[p.reg] = (cnt[p.reg] ?? 0) + 1; });
+    items.forEach((i) => { const r = i.store.reg ?? ''; sum[r] = (sum[r] ?? 0) + i.value; cnt[r] = (cnt[r] ?? 0) + 1; });
     if (metric === 'margin' || metric === 'meta') Object.keys(sum).forEach((k) => { sum[k] /= cnt[k]; });
     return sum;
-  }, [points, metric, ds]);
+  }, [items, metric]);
   const fmt = (v: number) => (metric === 'meta' ? `Cumplimiento medio ${pct(v)}` : metric === 'margin' ? `Margen medio ${pct(v, 1)}` : metric === 'units' ? `${nf(v, 0)} cajas` : money(v));
-  const inside = points.filter((p) => p.lat >= bounds[0][0] && p.lat <= bounds[1][0] && p.lon >= bounds[0][1] && p.lon <= bounds[1][1]).sort((a, b) => b.v - a.v).slice(0, 12);
-  const nameOf = (id: string) => ds.stores.find((s) => s.id === id)?.n ?? '';
+
+  // Lista lateral: salas dentro del encuadre actual, con búsqueda y orden.
+  const listed = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    let l = items.filter((i) => (!view || view.contains([i.lat, i.lon])) && (!term || i.name.toLowerCase().includes(term) || i.addr.toLowerCase().includes(term)));
+    const val = (i: Item) => (sort.by === 'weight' ? i.weight : sort.by === 'sales' ? i.sales : sort.by === 'growth' ? i.growth ?? -9 : 0);
+    l = [...l].sort((a, b) => (sort.by === 'name' ? a.name.localeCompare(b.name, 'es') * (sort.desc ? -1 : 1) : (val(b) - val(a)) * (sort.desc ? 1 : -1)));
+    return l;
+  }, [items, view, q, sort]);
+  const pages = Math.max(1, Math.ceil(listed.length / PAGE)), pg = Math.min(page, pages);
+  useEffect(() => { setPage(1); }, [q, sort, metric, f, view?.getCenter().lat]);   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const num = (k: 'red' | 'yellow', v: string) => setTh((t) => ({ ...t, [k]: Number.isFinite(+v) ? +v : t[k] }));
+  const initials = (n: string) => n.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ ]/g, '').trim().slice(0, 2).toUpperCase();
 
   return (
     <>
       <div className="so-card">
         <div className="so-maphead">
           <div className="so-seg" role="group" aria-label="Indicador">{(Object.keys(METRICS) as Metric[]).map((m) => <button key={m} aria-pressed={metric === m} onClick={() => setMetric(m)}>{METRICS[m]}</button>)}</div>
-          {metric === 'meta'
-            ? <div className="so-legend"><span><i style={{ background: 'var(--so-good)' }} />≥ 100%</span><span><i style={{ background: 'var(--so-warn)' }} />70–99%</span><span><i style={{ background: 'var(--so-bad)' }} />&lt; 70%</span></div>
-            : <div className="so-scale">menos <span className="g" /> más</div>}
+          <div className="so-seg" role="group" aria-label="Representación"><button aria-pressed={mode === 'bubbles'} onClick={() => setMode('bubbles')}>Burbujas</button><button aria-pressed={mode === 'heat'} onClick={() => setMode('heat')}>Calor</button></div>
         </div>
         <div className="so-maphead">
           <div className="so-seg" role="group" aria-label="Zona">
             <button aria-pressed={zoom === 'auto'} onClick={() => setZoom('auto')}>Auto</button>
             {Object.entries(ZOOMS).map(([k, z]) => <button key={k} aria-pressed={zoom === k} onClick={() => setZoom(k)}>{z.l}</button>)}
           </div>
-          <span className="so-lbl">{zoom === 'auto' ? `Enfoque automático: ${zoneLabel} · ` : ''}{points.length} salas · punto tenue = ubicación aproximada</span>
+          <span className="so-lbl">{zoom === 'auto' ? `Enfoque automático: ${zoneLabel} · ` : ''}{items.length} salas · tamaño = {metric === 'margin' ? 'venta' : METRICS[metric].toLowerCase()}</span>
         </div>
-        <div className="so-maps">
-          <div className="so-mapbox"><ChileMap geo={ctx.geo} values={regionVals} selected={f.regions} format={fmt} view={view} onPick={(r) => { setZoom('auto'); ctx.setF(toggleRegion(f, r, ctx.regions)); }} /></div>
-          <div className="so-mapbox"><ZoneMap geo={ctx.geo} tiles={ctx.tiles} points={points} heat={metric !== 'meta'} bounds={bounds} focusKey={key} highlight={ctx.sel} onPick={ctx.open} onMove={setView} /></div>
+
+        <div className="so-mapwrap">
+          <div className="so-stage">
+            <ZoneMap geo={ctx.geo} tiles={ctx.tiles} points={points} mode={mode} bounds={bounds} focusKey={key} hover={hover} focus={focus} communes={communes} showMarkers={showMarkers} onPick={ctx.open} onMove={setView} />
+
+            <div className={`so-ctrl${ctrlOpen ? '' : ' closed'}`}>
+              <button className="hd" onClick={() => setCtrlOpen(!ctrlOpen)} aria-expanded={ctrlOpen}>☰ Controlador</button>
+              {ctrlOpen && (
+                <div className="bd">
+                  <div className="sec">{metric === 'meta' ? 'Semáforo: cumplimiento de meta' : 'Semáforo: % crecimiento'}</div>
+                  {metric === 'meta' ? (
+                    <div className="sem"><span><i style={{ background: RED }} />&lt; 70%</span><span><i style={{ background: AMBER }} />70–99%</span><span><i style={{ background: GREEN }} />≥ 100%</span></div>
+                  ) : (
+                    <div className="sem">
+                      <span><i style={{ background: RED }} />menos de <input type="number" value={th.red} onChange={(e) => num('red', e.target.value)} aria-label="Límite rojo" />%</span>
+                      <span><i style={{ background: AMBER }} />hasta <input type="number" value={th.yellow} onChange={(e) => num('yellow', e.target.value)} aria-label="Límite amarillo" />%</span>
+                      <span><i style={{ background: GREEN }} />más que eso</span>
+                      <span><i style={{ background: GREY }} />sin base del año anterior</span>
+                    </div>
+                  )}
+                  <div className="sec">Marcadores</div>
+                  <label className="chk"><input type="checkbox" checked={showMarkers} onChange={(e) => setShowMarkers(e.target.checked)} /> Salas</label>
+                  <div className="sec">Selector de zonas</div>
+                  <label className="chk"><input type="radio" name="zones" checked={zones === 'none'} onChange={() => setZones('none')} /> Ninguna</label>
+                  <label className="chk"><input type="radio" name="zones" checked={zones === 'commune'} onChange={() => setZones('commune')} /> Comuna (color por crecimiento)</label>
+                </div>
+              )}
+            </div>
+
+            <div className={`so-inset${chileOpen ? '' : ' closed'}`}>
+              <button className="hd" onClick={() => setChileOpen(!chileOpen)} aria-expanded={chileOpen} title="Mapa de Chile por región">{chileOpen ? '–' : 'Chile'}</button>
+              {chileOpen && <ChileMap geo={ctx.geo} values={regionVals} selected={f.regions} format={fmt} view={view} height={210} onPick={(r) => { setZoom('auto'); ctx.setF(toggleRegion(f, r, ctx.regions)); }} />}
+            </div>
+          </div>
+
+          <aside className="so-side" aria-label="Salas en el mapa">
+            <div className="tools">
+              <select value={sort.by} onChange={(e) => setSort({ ...sort, by: e.target.value as SortKey })} aria-label="Ordenar por">{(Object.keys(SORTS) as SortKey[]).map((k) => <option key={k} value={k}>{SORTS[k]}</option>)}</select>
+              <button onClick={() => setSort({ ...sort, desc: !sort.desc })} aria-label="Invertir el orden" title="Invertir el orden">{sort.desc ? '↓' : '↑'}</button>
+            </div>
+            <input type="search" placeholder="Buscar sala…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Buscar sala" />
+            <div className="lst">
+              {listed.slice((pg - 1) * PAGE, pg * PAGE).map((i) => (
+                <button key={i.id} className={`row${hover === i.id ? ' on' : ''}`} onMouseEnter={() => setHover(i.id)} onMouseLeave={() => setHover(null)} onClick={() => setFocus({ id: i.id, n: Date.now() })}>
+                  <span className="av" style={{ background: chainColor(ds, i.store.ch) }}>{initials(chainOf(ds, i.store.ch))}</span>
+                  <span className="tx"><b>{i.name}</b><small>{i.addr || '—'}</small>
+                    <span className="mt"><strong className="num">{i.valueTxt}</strong>
+                      {metric !== 'meta' && <em className={i.growth === null ? '' : i.growth >= 0 ? 'up' : 'down'}>{i.growth === null ? '—' : `${i.growth >= 0 ? '▲' : '▼'} ${sgn(i.growth)}`}<small>crecimiento</small></em>}
+                      <em><span className="num">{pct(i.weight, 1)}</span><small>peso</small></em></span></span>
+                </button>
+              ))}
+              {listed.length === 0 && <p className="hint" style={{ padding: 12 }}>No hay salas en este encuadre. Aleje el mapa o cambie los filtros.</p>}
+            </div>
+            <div className="pg"><button disabled={pg <= 1} onClick={() => setPage(pg - 1)} aria-label="Página anterior">‹</button><span>Página {pg} de {pages} · {listed.length} salas</span><button disabled={pg >= pages} onClick={() => setPage(pg + 1)} aria-label="Página siguiente">›</button></div>
+          </aside>
         </div>
-        <p className="hint" style={{ margin: '8px 0 0' }}>{ctx.tiles ? 'Mapa de calles © OpenStreetMap. ' : ''}Arrastre para mover, use + / − o la rueda (haga clic en el mapa primero). En el celular, dos dedos para mover y acercar.</p>
+        <p className="hint" style={{ margin: '8px 0 0' }}>{ctx.tiles ? 'Mapa de calles © OpenStreetMap. ' : ''}Toque una sala de la lista para acercar el mapa y ver su ficha; «más detalles» abre la ficha completa. Arrastre para mover, use + / − o la rueda (haga clic en el mapa primero). En el celular, dos dedos para mover y acercar.</p>
       </div>
-      <section className="so-card" style={{ marginTop: 16 }}>
-        <h2>Salas de la zona</h2><p className="hint">Ordenadas por {METRICS[metric].toLowerCase()}. Toque una para abrir su ficha, con fotos y comentarios.</p>
-        {inside.length === 0 ? <p className="hint">No hay salas con datos en esta zona con los filtros actuales.</p> : (
-          <div className="so-scroll"><table className="so-tbl"><thead><tr><th>Sala</th><th className="r">{METRICS[metric]}</th></tr></thead>
-            <tbody>{inside.map((p) => <tr key={p.id} className="click" onClick={() => ctx.open(p.id)}><td>{nameOf(p.id)}</td><td className="r num">{metric === 'meta' ? pct(p.v) : metric === 'sales' ? money(p.v) : metric === 'units' ? `${nf(p.v, 0)} cajas` : pct(p.v, 1)}</td></tr>)}</tbody></table></div>
-        )}
-      </section>
       <section className="so-card" style={{ marginTop: 16 }}>
         <h2>Solicitudes para {zoneLabel}</h2><p className="hint">Una solicitud de zona queda asociada a la selección de regiones activa o, si no hay, a la zona del mapa.</p>
         <RequestBox me={ctx.me} clientId={ctx.clientId} scope="zone" zoneLabel={zoneLabel} />

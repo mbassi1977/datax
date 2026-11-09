@@ -8,6 +8,7 @@ import { Ficha } from './Ficha';
 import { RequestsTab, pendingCount, useRequests } from './Requests';
 import { Geo, Tiles, loadGeo } from './MapView';
 import './sellout.css';
+import './sellout-map.css';
 
 const TABS: [string, string][] = [['resumen', 'Resumen'], ['mapa', 'Mapa de salas'], ['entorno', 'Entorno'], ['metas', 'Metas'], ['alertas', 'Alertas'], ['solicitudes', 'Solicitudes']];
 
