@@ -2,9 +2,9 @@ import { ReactNode, useEffect, useMemo, useState } from 'react';
 import type L from 'leaflet';
 import { Me } from '../api';
 import {
-  DS, Filters, Row, SEMA_TXT, Store, agg, lastIdx, chainColor, goal, groupBy, hav, inReg, money, monthLabel, nf, pct, periodLabels, periodWindow, prodSet, productColor, rows, sema, sgn, totals, ZONES,
+  DS, Filters, Row, SEMA_TXT, Store, agg, lastIdx, logoOf, chainColor, goal, groupBy, hav, inReg, money, monthLabel, nf, pct, periodLabels, periodWindow, prodSet, productColor, rows, sema, sgn, totals, ZONES,
 } from './model';
-import { Bars, BarItem, Cans, StackedBars } from './charts';
+import { Bars, BarItem, Cans, Logo, StackedBars } from './charts';
 import { ChileMap, Geo, MapPoint, NearMap, Tiles, ZoneMap, regionKey } from './MapView';
 import { toggleRegion } from './Filters';
 import { RequestBox } from './Requests';
@@ -30,7 +30,7 @@ export function StoreTable({ ctx, list }: { ctx: Ctx; list: Row[] }) {
         return (
           <tr key={r.s.id} className="click" onClick={() => ctx.open(r.s.id)}>
             <td>{r.s.n}{r.s.q === 'name' || r.s.q === 'none' ? <span className="so-lbl" title="Ubicación aproximada"> ~</span> : null}</td>
-            <td><Dot color={chainColor(ctx.ds, r.s.ch)} />{chainOf(ctx.ds, r.s.ch)}</td><td>{r.s.reg ?? '—'}</td>
+            <td><span className="so-chain"><Logo src={logoOf(ctx.ds, r.s)} name={chainOf(ctx.ds, r.s.ch)} color={chainColor(ctx.ds, r.s.ch)} size={22} />{chainOf(ctx.ds, r.s.ch)}</span></td><td>{r.s.reg ?? '—'}</td>
             <td className="r num">{money(r.cur.s)}</td><td className="r num">{nf(r.cur.bx, 1)}</td><td className="r num">{m === null ? '—' : pct(m)}</td>
             <td className={`r num ${y === null ? '' : y >= 0 ? 'up' : 'down'}`}>{y === null ? '—' : sgn(y)}</td>
           </tr>
@@ -254,7 +254,7 @@ export function MapaView({ ctx, metaMonth }: { ctx: Ctx; metaMonth: number }) {
             <div className="lst">
               {listed.slice((pg - 1) * PAGE, pg * PAGE).map((i) => (
                 <button key={i.id} className={`row${hover === i.id ? ' on' : ''}`} onMouseEnter={() => setHover(i.id)} onMouseLeave={() => setHover(null)} onClick={() => setFocus({ id: i.id, n: Date.now() })}>
-                  <span className="av" style={{ background: chainColor(ds, i.store.ch) }}>{initials(chainOf(ds, i.store.ch))}</span>
+                  <span className="av"><Logo src={logoOf(ds, i.store)} name={chainOf(ds, i.store.ch)} color={chainColor(ds, i.store.ch)} size={36} /></span>
                   <span className="tx"><b>{i.name}</b><small>{i.addr || '—'}</small>
                     <span className="mt"><strong className="num">{i.valueTxt}</strong>
                       {metric !== 'meta' && <em className={i.growth === null ? '' : i.growth >= 0 ? 'up' : 'down'}>{i.growth === null ? '—' : `${i.growth >= 0 ? '▲' : '▼'} ${sgn(i.growth)}`}<small>crecimiento</small></em>}
@@ -332,7 +332,7 @@ export function EntornoView({ ctx, nearId, setNear }: { ctx: Ctx; nearId: string
           <div className="so-scroll"><table className="so-tbl"><thead><tr><th>Sala</th><th>Cadena</th><th className="r">Km</th><th className="r">Venta</th><th className="r">vs año ant.</th><th className="r">Margen</th><th className="r">Cumpl.</th></tr></thead>
             <tbody>{ALL.map((i) => (
               <tr key={i.s.id} className={i === B ? 'sel' : 'click'} onClick={i === B ? undefined : () => setNear(i.s.id)}>
-                <td>{i.s.n}{i === B && <> <Pill kind="good">elegida</Pill></>}</td><td><Dot color={chainColor(ds, i.s.ch)} />{chainOf(ds, i.s.ch)}</td>
+                <td>{i.s.n}{i === B && <> <Pill kind="good">elegida</Pill></>}</td><td><span className="so-chain"><Logo src={logoOf(ds, i.s)} name={chainOf(ds, i.s.ch)} color={chainColor(ds, i.s.ch)} size={22} />{chainOf(ds, i.s.ch)}</span></td>
                 <td className="r num">{i === B ? '—' : nf(i.d, 1)}</td><td className="r num">{money(i.cur.s)}</td>
                 <td className={`r num ${i.yoy === null ? '' : i.yoy >= 0 ? 'up' : 'down'}`}>{i.yoy === null ? '—' : sgn(i.yoy)}</td><td className="r num">{i.mg === null ? '—' : pct(i.mg)}</td>
                 <td className="r num">{i.meta === null ? '—' : <Pill kind={sema(i.meta)}>{pct(i.meta)}</Pill>}</td>

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { api, Me, upload } from '../api';
 import { can } from '../ResourcePage';
 import { formatDateTime } from '../fmt';
-import { DS, Filters, Store, agg, chainColor, goal, money, monthly, nf, pct, periodLabels, periodWindow, prodSet, productColor, sgn, SEMA_TXT, sema } from './model';
-import { BarItem, Bars, useTip } from './charts';
+import { DS, Filters, Store, agg, chainColor, logoOf, goal, money, monthly, nf, pct, periodLabels, periodWindow, prodSet, productColor, sgn, SEMA_TXT, sema } from './model';
+import { BarItem, Bars, Logo, useTip } from './charts';
 import { RequestBox } from './Requests';
 
 type Detail = { photos: { id: string; url: string; caption: string | null; by: string | null; at: string }[]; notes: { id: string; body: string; by: string | null; at: string }[] };
@@ -35,7 +35,7 @@ export function Ficha({ me, ds, f, store, clientId, monthIdx, onClose, onNear }:
   return (
     <aside className="so-drawer" aria-label={`Ficha de ${store.n}`}>
       <button className="so-x" onClick={onClose} aria-label="Cerrar ficha">✕</button>
-      <span className="so-lbl">{ds.chains.find((c) => c.id === store.ch)?.name} · cód. {store.code}</span>
+      <div className="so-fhead"><Logo src={logoOf(ds, store)} name={ds.chains.find((c) => c.id === store.ch)?.name ?? ''} color={chainColor(ds, store.ch)} size={44} /><span className="so-lbl">{ds.chains.find((c) => c.id === store.ch)?.name} · cód. {store.code}</span></div>
       <h3>{store.n}</h3>
       <div className="hint">{store.ad ? `${store.ad} · ` : store.com ? `${store.com} · ` : ''}{store.reg}{store.q === 'name' || store.q === 'none' ? ' · ubicación aproximada' : store.q === 'commune' ? ' · ubicada por comuna' : ''}</div>
       <div className="so-mini">

@@ -34,6 +34,8 @@ Route::prefix('v1')->group(function () {
     Route::get('media/avatars/{avatar}', [MediaController::class, 'avatar'])->name('media.avatar')->middleware('signed:relative');
     Route::get('media/audit-evidence/{evidence}', [MediaController::class, 'auditEvidence'])->name('media.audit-evidence')->middleware('signed:relative');
     Route::get('media/sellout/products/{product}', [MediaController::class, 'selloutProduct'])->name('media.sellout-product')->middleware('signed:relative');
+    Route::get('media/sellout/chain-logos/{chain}', [MediaController::class, 'selloutChainLogo'])->name('media.sellout-chain-logo')->middleware('signed:relative');
+    Route::get('media/sellout/banner-logos/{banner}', [MediaController::class, 'selloutBannerLogo'])->name('media.sellout-banner-logo')->middleware('signed:relative');
     Route::get('media/sellout/photos/{photo}', [MediaController::class, 'selloutPhoto'])->name('media.sellout-photo')->middleware('signed:relative');
     Route::get('media/sellout/responses/{req}', [MediaController::class, 'selloutResponse'])->name('media.sellout-response')->middleware('signed:relative');
     Route::get('media/logos/{setting}', [MediaController::class, 'logo'])->name('media.logo')->middleware('signed:relative');
@@ -156,6 +158,13 @@ Route::prefix('v1')->group(function () {
         Route::get('sellout/chains', [$so, 'chains'])->middleware('permission:sellout.ver');
         Route::post('sellout/chains', [$so, 'storeChain'])->middleware('permission:sellout.editar');
         Route::put('sellout/chains/{id}', [$so, 'updateChain'])->middleware('permission:sellout.editar');
+        Route::post('sellout/chains/{id}/logo', [$so, 'chainLogo'])->middleware('permission:sellout.editar');
+        Route::delete('sellout/chains/{id}/logo', [$so, 'removeChainLogo'])->middleware('permission:sellout.editar');
+        Route::get('sellout/banners', [$so, 'banners'])->middleware('permission:sellout.ver');
+        Route::post('sellout/banners', [$so, 'storeBanner'])->middleware('permission:sellout.editar');
+        Route::put('sellout/banners/{id}', [$so, 'updateBanner'])->middleware('permission:sellout.editar');
+        Route::delete('sellout/banners/{id}', [$so, 'destroyBanner'])->middleware('permission:sellout.editar');
+        Route::post('sellout/banners/{id}/logo', [$so, 'bannerLogo'])->middleware('permission:sellout.editar');
         Route::get('sellout/points', [$so, 'points'])->middleware('permission:sellout.ver');
         Route::put('sellout/points/{id}', [$so, 'updatePoint'])->middleware('permission:sellout.editar');
         Route::get('sellout/points/{id}/detail', [$so, 'pointDetail'])->middleware('permission:sellout.ver');

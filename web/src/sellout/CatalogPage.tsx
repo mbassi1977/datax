@@ -115,21 +115,65 @@ function ProductForm({ clientId, product, onClose, onSaved }: { clientId: string
   );
 }
 
+type Banner = { id: string; chain_id: string; name: string; aliases: string[]; logo: string | null };
+
+/** Cadenas con su logo y, dentro de cada una, sus formatos (p. ej. Jumbo, Santa Isabel y Spid en Cencosud) reconocidos por el nombre de la sala. */
 function Chains({ clientId, edit }: { clientId: string; edit: boolean }) {
-  const [list, setList] = useState<Chain[]>([]);
+  const [list, setList] = useState<(Chain & { logo: string | null })[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [name, setName] = useState('');
   const [error, setError] = useState('');
-  const load = useCallback(() => { api<Chain[]>('GET', `sellout/chains?organization_id=${clientId}`).then(setList).catch((e) => setError(e.message)); }, [clientId]);
+  const load = useCallback(() => {
+    api<(Chain & { logo: string | null })[]>('GET', `sellout/chains?organization_id=${clientId}`).then(setList).catch((e) => setError(e.message));
+    api<Banner[]>('GET', `sellout/banners?organization_id=${clientId}`).then(setBanners).catch(() => {});
+  }, [clientId]);
   useEffect(load, [load]);
-  const add = async (e: FormEvent) => { e.preventDefault(); setError(''); try { await api('POST', `sellout/chains?organization_id=${clientId}`, { name }); setName(''); load(); } catch (e2) { setError((e2 as Error).message); } };
-  const color = async (c: Chain, v: string) => { try { await api('PUT', `sellout/chains/${c.id}`, { color: v }); load(); } catch (e) { setError((e as Error).message); } };
+  const fail = (e: unknown) => { const ae = e as ApiError; setError(Object.values(ae.errors ?? {}).flat().join(' ') || ae.message); };
+  const add = async (e: FormEvent) => { e.preventDefault(); setError(''); try { await api('POST', `sellout/chains?organization_id=${clientId}`, { name }); setName(''); load(); } catch (e2) { fail(e2); } };
+  const color = async (c: Chain, v: string) => { try { await api('PUT', `sellout/chains/${c.id}`, { color: v }); load(); } catch (e) { fail(e); } };
+  const putLogo = async (path: string, file?: File) => { if (!file) return; const fd = new FormData(); fd.append('file', file); try { await upload(path, fd); load(); } catch (e) { fail(e); } };
+  const addBanner = async (chain: Chain, n: string) => { try { await api('POST', `sellout/banners?organization_id=${clientId}`, { chain_id: chain.id, name: n, aliases: [n] }); load(); } catch (e) { fail(e); } };
+  const aliases = async (b: Banner, v: string) => { try { await api('PUT', `sellout/banners/${b.id}`, { aliases: v.split(',').map((x) => x.trim()).filter(Boolean) }); load(); } catch (e) { fail(e); } };
+
   return (
-    <div className="so-card" style={{ maxWidth: 560 }}>
-      <h2>Cadenas</h2><p className="hint">Las cadenas también se crean solas al cargar un archivo que trae la columna «Cadena».</p>
+    <div style={{ display: 'grid', gap: 16, maxWidth: 760 }}>
+      <p className="hint" style={{ margin: 0 }}>Suba el logo de cada cadena (PNG o WebP, idealmente con fondo transparente). Si una cadena tiene varios formatos con marca propia, agréguelos: la sala toma el logo del formato cuyo nombre aparezca en el suyo (p. ej. «Jumbo Bilbao» → Jumbo). Las cadenas también se crean solas al cargar un archivo con la columna «Cadena».</p>
       {error && <p className="error">{error}</p>}
-      <table className="so-tbl"><tbody>{list.map((c, i) => <tr key={c.id}><td>{c.name}</td><td className="r"><input type="color" value={c.color ?? SERIES[i % SERIES.length]} disabled={!edit} onChange={(e) => color(c, e.target.value)} style={{ width: 50, padding: 2 }} aria-label={`Color de ${c.name}`} /></td></tr>)}</tbody></table>
-      {edit && <form onSubmit={add} style={{ display: 'flex', gap: 8, marginTop: 10 }}><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nueva cadena" required maxLength={120} /><button className="primary">Agregar</button></form>}
+      {list.map((c, i) => (
+        <div key={c.id} className="so-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            {c.logo ? <img className="so-logo" src={c.logo} alt={c.name} style={{ height: 44, maxWidth: 120 }} /> : <span className="so-logo ph" style={{ height: 44, width: 44, background: c.color ?? SERIES[i % SERIES.length] }}>{c.name.slice(0, 2).toUpperCase()}</span>}
+            <strong style={{ flex: 1 }}>{c.name}</strong>
+            <input type="color" value={c.color ?? SERIES[i % SERIES.length]} disabled={!edit} onChange={(e) => color(c, e.target.value)} style={{ width: 50, padding: 2 }} aria-label={`Color de ${c.name}`} />
+            {edit && <label className="btn">{c.logo ? 'Cambiar logo' : 'Subir logo'}<input type="file" accept="image/png,image/webp,image/jpeg" hidden onChange={(e) => putLogo(`sellout/chains/${c.id}/logo`, e.target.files?.[0])} /></label>}
+            {edit && c.logo && <button onClick={async () => { try { await api('DELETE', `sellout/chains/${c.id}/logo`); load(); } catch (e) { fail(e); } }}>Quitar</button>}
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <div className="so-lbl">Formatos</div>
+            {banners.filter((b) => b.chain_id === c.id).map((b) => (
+              <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderTop: '1px solid var(--border)', flexWrap: 'wrap' }}>
+                {b.logo ? <img className="so-logo" src={b.logo} alt={b.name} style={{ height: 36, maxWidth: 100 }} /> : <span className="so-logo ph" style={{ height: 36, width: 36, background: '#9aa3b5' }}>{b.name.slice(0, 2).toUpperCase()}</span>}
+                <strong style={{ minWidth: 90 }}>{b.name}</strong>
+                <input defaultValue={b.aliases.join(', ')} disabled={!edit} onBlur={(e) => aliases(b, e.target.value)} style={{ flex: 1, minWidth: 160 }} aria-label={`Palabras que identifican ${b.name}`} title="Palabras del nombre de la sala que identifican este formato, separadas por coma" />
+                {edit && <label className="btn">{b.logo ? 'Cambiar' : 'Subir logo'}<input type="file" accept="image/png,image/webp,image/jpeg" hidden onChange={(e) => putLogo(`sellout/banners/${b.id}/logo`, e.target.files?.[0])} /></label>}
+                {edit && <button className="danger" onClick={async () => { if (confirm(`¿Quitar el formato «${b.name}»?`)) { try { await api('DELETE', `sellout/banners/${b.id}`); load(); } catch (e) { fail(e); } } }}>Quitar</button>}
+              </div>
+            ))}
+            {edit && <BannerAdd onAdd={(n) => addBanner(c, n)} />}
+          </div>
+        </div>
+      ))}
+      {edit && <form onSubmit={add} style={{ display: 'flex', gap: 8 }}><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nueva cadena" required maxLength={120} /><button className="primary">Agregar cadena</button></form>}
     </div>
+  );
+}
+
+function BannerAdd({ onAdd }: { onAdd: (name: string) => void }) {
+  const [n, setN] = useState('');
+  return (
+    <form onSubmit={(e) => { e.preventDefault(); if (n.trim()) { onAdd(n.trim()); setN(''); } }} style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+      <input value={n} onChange={(e) => setN(e.target.value)} placeholder="Agregar formato (Jumbo, Spid…)" maxLength={120} style={{ maxWidth: 280 }} /><button>+ Formato</button>
+    </form>
   );
 }
 

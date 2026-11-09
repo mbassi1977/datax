@@ -43,6 +43,22 @@ class MediaController extends Controller
         return $this->file($p->image_path, $p->image_mime ?: 'image/png');
     }
 
+    public function selloutChainLogo(string $chain): Response
+    {
+        $c = \App\Models\SelloutChain::findOrFail($chain);
+        abort_unless($c->logo_path, 404);
+
+        return $this->file($c->logo_path, $c->logo_mime ?: 'image/png');
+    }
+
+    public function selloutBannerLogo(string $banner): Response
+    {
+        $b = \App\Models\SelloutBanner::findOrFail($banner);
+        abort_unless($b->logo_path, 404);
+
+        return $this->file($b->logo_path, $b->logo_mime ?: 'image/png');
+    }
+
     public function selloutPhoto(string $photo): Response
     {
         $f = \App\Models\SelloutPointPhoto::findOrFail($photo);

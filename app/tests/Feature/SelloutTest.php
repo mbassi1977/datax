@@ -269,4 +269,30 @@ class SelloutTest extends TestCase
         $this->assertSame(6, $p->refresh()->units_per_box);
         $this->assertSame(['minga', 'minga loca ipa'], $p->aliases);   // lo no mapeado no se toca
     }
+
+    public function test_chain_logos_and_banners_by_store_name(): void
+    {
+        $this->as($this->user('admin'));
+        $chain = $this->postJson('/api/v1/sellout/chains?organization_id='.$this->loa->id, ['name' => 'Cencosud'])->assertCreated()->json('id');
+        $logo = UploadedFile::fake()->image('c.png', 300, 100);
+        $r = $this->post("/api/v1/sellout/chains/{$chain}/logo", ['file' => $logo], ['Accept' => 'application/json'])->assertOk()->json();
+        $this->assertStringContainsString('signature=', $r['logo']);
+        $this->get($r['logo'])->assertOk()->assertHeader('content-type', 'image/png');
+
+        $b = $this->postJson('/api/v1/sellout/banners?organization_id='.$this->loa->id, ['chain_id' => $chain, 'name' => 'Spid', 'aliases' => ['spid', ' spid ']])->assertCreated()->json();
+        $this->assertSame(['spid'], $b['aliases']);
+        $this->postJson('/api/v1/sellout/banners?organization_id='.$this->loa->id, ['chain_id' => $chain, 'name' => 'SPID'])->assertStatus(422);
+        $bl = $this->post("/api/v1/sellout/banners/{$b['id']}/logo", ['file' => UploadedFile::fake()->image('s.png', 200, 200)], ['Accept' => 'application/json'])->assertOk()->json();
+        $this->assertNotNull($bl['logo']);
+
+        $ds = $this->getJson('/api/v1/sellout/dataset?organization_id='.$this->loa->id)->assertOk()->json();
+        $this->assertNotNull($ds['chains'][0]['logo']);
+        $this->assertSame('Spid', $ds['banners'][0]['name']);
+
+        $this->as($this->user('cliente_sellout', 'organization', $this->loa->id));
+        $this->post("/api/v1/sellout/chains/{$chain}/logo", ['file' => $logo], ['Accept' => 'application/json'])->assertForbidden();   // el cliente no edita el catálogo
+        $this->getJson('/api/v1/sellout/banners')->assertOk()->assertJsonCount(1);
+        $this->as($this->user('admin'));
+        $this->deleteJson("/api/v1/sellout/banners/{$b['id']}")->assertNoContent();
+    }
 }

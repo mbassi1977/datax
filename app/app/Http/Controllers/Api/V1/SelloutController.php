@@ -57,7 +57,8 @@ class SelloutController extends Controller
         $idx = array_flip($months);
         $n = count($months);
 
-        $chains = SelloutChain::where('organization_id', $org)->orderBy('sort')->orderBy('name')->get(['id', 'name', 'color']);
+        $chains = SelloutChain::where('organization_id', $org)->orderBy('sort')->orderBy('name')->get()->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'color' => $c->color, 'logo' => $c->logo_path ? $this->signed('media.sellout-chain-logo', ['chain' => $c->id]) : null]);
+        $banners = \App\Models\SelloutBanner::where('organization_id', $org)->orderBy('sort')->orderBy('name')->get()->map(fn ($b) => $this->presentBanner($b));
         $products = \App\Models\SelloutProduct::where('organization_id', $org)->where('active', true)->orderBy('sort')->orderBy('name')->get()
             ->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'color' => $p->color, 'upb' => $p->units_per_box, 'image' => $p->image_path ? $this->signed('media.sellout-product', ['product' => $p->id]) : null]);
 
@@ -82,7 +83,7 @@ class SelloutController extends Controller
             }
         }
 
-        return response()->json(['client' => ['id' => $org], 'months' => $months, 'sales_to' => $range->b ? substr((string) $range->b, 0, 7) : null, 'chains' => $chains, 'products' => $products, 'stores' => array_values($stores)]);
+        return response()->json(['client' => ['id' => $org], 'months' => $months, 'sales_to' => $range->b ? substr((string) $range->b, 0, 7) : null, 'chains' => $chains, 'banners' => $banners, 'products' => $products, 'stores' => array_values($stores)]);
     }
 
     // ───────────── cadenas ─────────────
@@ -91,7 +92,7 @@ class SelloutController extends Controller
     {
         $org = $this->client($request, 'sellout.ver');
 
-        return response()->json(SelloutChain::where('organization_id', $org)->orderBy('sort')->orderBy('name')->get(['id', 'name', 'color', 'sort']));
+        return response()->json(SelloutChain::where('organization_id', $org)->orderBy('sort')->orderBy('name')->get()->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'color' => $c->color, 'sort' => $c->sort, 'logo' => $c->logo_path ? $this->signed('media.sellout-chain-logo', ['chain' => $c->id]) : null]));
     }
 
     public function storeChain(Request $request): JsonResponse
@@ -195,6 +196,107 @@ class SelloutController extends Controller
         $f->delete();
 
         return response()->json(null, 204);
+    }
+
+    // ───────────── logos de cadenas y formatos ─────────────
+
+    public function chainLogo(Request $request, string $id): JsonResponse
+    {
+        $c = SelloutChain::where('tenant_id', $request->user()->tenant_id)->findOrFail($id);
+        $this->authorizeOn($request, 'sellout.editar', $c->organization_id);
+        $request->validate(['file' => ['required', 'file', 'max:4096']]);
+        $img = $this->storeLogo($request, $c->tenant_id);
+        $c->logo_path && Storage::disk('local')->delete($c->logo_path);
+        $c->update(['logo_path' => $img['path'], 'logo_mime' => $img['mime']]);
+
+        return response()->json(['id' => $c->id, 'logo' => $this->signed('media.sellout-chain-logo', ['chain' => $c->id])]);
+    }
+
+    public function removeChainLogo(Request $request, string $id): JsonResponse
+    {
+        $c = SelloutChain::where('tenant_id', $request->user()->tenant_id)->findOrFail($id);
+        $this->authorizeOn($request, 'sellout.editar', $c->organization_id);
+        $c->logo_path && Storage::disk('local')->delete($c->logo_path);
+        $c->update(['logo_path' => null, 'logo_mime' => null]);
+
+        return response()->json(['id' => $c->id, 'logo' => null]);
+    }
+
+    public function banners(Request $request): JsonResponse
+    {
+        $org = $this->client($request, 'sellout.ver');
+
+        return response()->json(\App\Models\SelloutBanner::where('organization_id', $org)->orderBy('sort')->orderBy('name')->get()->map(fn ($b) => $this->presentBanner($b)));
+    }
+
+    public function storeBanner(Request $request): JsonResponse
+    {
+        $org = $this->client($request, 'sellout.editar');
+        $data = $request->validate(['chain_id' => ['required', 'uuid'], 'name' => ['required', 'string', 'max:120'], 'aliases' => ['sometimes', 'array', 'max:20'], 'aliases.*' => ['string', 'max:120']]);
+        abort_unless(SelloutChain::where('organization_id', $org)->where('id', $data['chain_id'])->exists(), 422, 'La cadena no existe.');
+        abort_if(\App\Models\SelloutBanner::where('chain_id', $data['chain_id'])->whereRaw('lower(name) = ?', [mb_strtolower($data['name'])])->exists(), 422, 'Ya existe un formato con ese nombre en la cadena.');
+        $b = \App\Models\SelloutBanner::create(['tenant_id' => $request->user()->tenant_id, 'organization_id' => $org, 'chain_id' => $data['chain_id'], 'name' => $data['name'], 'aliases' => $this->cleanAliases($data['aliases'] ?? [$data['name']])]);
+
+        return response()->json($this->presentBanner($b), 201);
+    }
+
+    public function updateBanner(Request $request, string $id): JsonResponse
+    {
+        $b = $this->findBanner($request, $id);
+        $data = $request->validate(['name' => ['sometimes', 'string', 'max:120'], 'aliases' => ['sometimes', 'array', 'max:20'], 'aliases.*' => ['string', 'max:120'], 'sort' => ['sometimes', 'integer']]);
+        if (isset($data['aliases'])) {
+            $data['aliases'] = $this->cleanAliases($data['aliases']);
+        }
+        $b->update($data);
+
+        return response()->json($this->presentBanner($b->refresh()));
+    }
+
+    public function destroyBanner(Request $request, string $id): JsonResponse
+    {
+        $b = $this->findBanner($request, $id);
+        $b->logo_path && Storage::disk('local')->delete($b->logo_path);
+        $b->delete();
+
+        return response()->json(null, 204);
+    }
+
+    public function bannerLogo(Request $request, string $id): JsonResponse
+    {
+        $b = $this->findBanner($request, $id);
+        $request->validate(['file' => ['required', 'file', 'max:4096']]);
+        $img = $this->storeLogo($request, $b->tenant_id);
+        $b->logo_path && Storage::disk('local')->delete($b->logo_path);
+        $b->update(['logo_path' => $img['path'], 'logo_mime' => $img['mime']]);
+
+        return response()->json($this->presentBanner($b->refresh()));
+    }
+
+    private function findBanner(Request $request, string $id): \App\Models\SelloutBanner
+    {
+        $b = \App\Models\SelloutBanner::where('tenant_id', $request->user()->tenant_id)->findOrFail($id);
+        $this->authorizeOn($request, 'sellout.editar', $b->organization_id);
+
+        return $b;
+    }
+
+    private function storeLogo(Request $request, string $tenant): array
+    {
+        try {
+            return ImageStore::store($request->file('file'), "sellout/{$tenant}/logos", 400, true);
+        } catch (RuntimeException $e) {
+            abort(422, $e->getMessage());
+        }
+    }
+
+    private function cleanAliases(array $a): array
+    {
+        return array_values(array_unique(array_filter(array_map('trim', $a))));
+    }
+
+    private function presentBanner(\App\Models\SelloutBanner $b): array
+    {
+        return ['id' => $b->id, 'chain_id' => $b->chain_id, 'name' => $b->name, 'aliases' => $b->aliases ?? [], 'sort' => $b->sort, 'logo' => $b->logo_path ? $this->signed('media.sellout-banner-logo', ['banner' => $b->id]) : null];
     }
 
     private function signed(string $route, array $params): string

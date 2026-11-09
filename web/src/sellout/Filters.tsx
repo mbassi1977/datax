@@ -1,6 +1,6 @@
 import { ReactNode, useEffect, useRef, useState } from 'react';
 import { DS, Filters, PeriodKey, REGION_ORDER, ZONES, chainColor, periodLabels } from './model';
-import { ProductAvatar } from './charts';
+import { Logo, ProductAvatar } from './charts';
 
 type Pop = { kind: 'chain' | 'prod' | 'regions'; key: string; l: number; b: number } | null;
 
@@ -60,7 +60,7 @@ export function FilterBar({ ds, f, setF, regionsAvailable, tabs }: { ds: DS; f: 
         <div className="so-chips" role="group" aria-label="Cadenas">
           {ds.chains.map((c) => (
             <button key={c.id} data-chip className="so-chip" aria-pressed={f.chains.has(c.id)} aria-haspopup="true" onClick={(e) => openPop(e, 'chain', c.id)}>
-              <i style={{ background: chainColor(ds, c.id) }} />{c.name}
+              {c.logo ? <Logo src={c.logo} name={c.name} color={chainColor(ds, c.id)} size={22} /> : <i style={{ background: chainColor(ds, c.id) }} />}{c.name}
             </button>
           ))}
         </div>

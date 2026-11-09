@@ -2,12 +2,14 @@
 // [venta, unidades, costo] y las metas por mes; aquí se agregan por período, filtros y comparaciones.
 
 export type Product = { id: string; name: string; color: string | null; upb: number; image: string | null };
-export type Chain = { id: string; name: string; color: string | null };
+export type Chain = { id: string; name: string; color: string | null; logo: string | null };
+/** Formato de una cadena (Jumbo, Santa Isabel y Spid dentro de Cencosud): se reconoce por el nombre de la sala. */
+export type Banner = { id: string; chain_id: string; name: string; aliases: string[]; logo: string | null };
 export type Store = {
   id: string; ch: string; code: string; n: string; reg: string | null; com: string | null; lat: number | null; lon: number | null; q: string; ad: string | null;
   d: Record<string, number[][]>; t: Record<string, number>;
 };
-export type DS = { client: { id: string }; months: string[]; sales_to: string | null; chains: Chain[]; products: Product[]; stores: Store[] };
+export type DS = { client: { id: string }; months: string[]; sales_to: string | null; chains: Chain[]; banners: Banner[]; products: Product[]; stores: Store[] };
 
 export type PeriodKey = 'm1' | 'm3' | 'ytd' | 'all';
 export type Filters = { chains: Set<string>; regions: Set<string>; prods: Set<string>; period: PeriodKey };
@@ -115,3 +117,21 @@ export function goal(ds: DS, st: Store, mi: number): { meta: number; real: numbe
 export const SERIES = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948'];
 export const chainColor = (ds: DS, id: string) => ds.chains.find((c) => c.id === id)?.color ?? SERIES[Math.max(0, ds.chains.findIndex((c) => c.id === id)) % SERIES.length];
 export const productColor = (ds: DS, id: string) => ds.products.find((p) => p.id === id)?.color ?? SERIES[Math.max(0, ds.products.findIndex((p) => p.id === id)) % SERIES.length];
+
+// ───────── logos ─────────
+const plain = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const bannerCache = new WeakMap<DS, Map<string, Banner | null>>();
+
+/** Formato de la sala por su nombre (gana el alias más largo que aparezca). */
+export function bannerOf(ds: DS, st: Store): Banner | null {
+  let m = bannerCache.get(ds); if (!m) { m = new Map(); bannerCache.set(ds, m); }
+  if (m.has(st.id)) return m.get(st.id)!;
+  const name = ` ${plain(st.n)} `; let best: Banner | null = null, len = 0;
+  for (const b of ds.banners ?? []) {
+    if (b.chain_id !== st.ch) continue;
+    for (const a of b.aliases) { const k = plain(a); if (k && name.includes(` ${k} `) && k.length > len) { best = b; len = k.length; } }
+  }
+  m.set(st.id, best); return best;
+}
+/** Logo de la sala: el de su formato, si no el de su cadena. */
+export const logoOf = (ds: DS, st: Store): string | null => bannerOf(ds, st)?.logo ?? ds.chains.find((c) => c.id === st.ch)?.logo ?? null;

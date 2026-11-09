@@ -128,4 +128,12 @@ export function Cans({ ds, items, total, onSolo }: { ds: DS; items: { p: Product
   );
 }
 
+/** Logo (cadena o formato) en una ficha redonda o rectangular; sin logo, iniciales sobre el color de la cadena. */
+export function Logo({ src, name, color, size = 36 }: { src: string | null; name: string; color: string; size?: number }) {
+  const ini = name.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ ]/g, '').trim().slice(0, 2).toUpperCase();
+  return src
+    ? <img className="so-logo" src={src} alt={name} title={name} style={{ height: size, maxWidth: size * 2.6 }} />
+    : <span className="so-logo ph" title={name} style={{ height: size, width: size, background: color, fontSize: size * 0.36 }}>{ini}</span>;
+}
+
 export { SERIES };

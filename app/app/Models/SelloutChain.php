@@ -12,4 +12,5 @@ class SelloutChain extends Model
 
     protected $table = 'sellout.chains';
     protected $guarded = ['id']; // tenant_id y organization_id los fija el controlador
+    protected $hidden = ['logo_path'];
 }
