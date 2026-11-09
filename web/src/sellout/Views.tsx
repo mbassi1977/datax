@@ -124,7 +124,7 @@ export function MapaView({ ctx, metaMonth }: { ctx: Ctx; metaMonth: number }) {
   };
   let bounds = ZOOMS.rm.b, zoneLabel = ZOOMS.rm.l, key = 'rm';
   if (zoom !== 'auto') { bounds = ZOOMS[zoom].b; zoneLabel = ZOOMS[zoom].l; key = zoom; }
-  else if (selStore?.lat != null) { bounds = [[selStore.lat - 0.009, selStore.lon! - 0.0108], [selStore.lat + 0.009, selStore.lon! + 0.0108]]; /* ~1 km a la redonda */ zoneLabel = selStore.n; key = 'sel:' + selStore.id; }
+  else if (selStore?.lat != null) { bounds = [[selStore.lat - 0.027, selStore.lon! - 0.0324], [selStore.lat + 0.027, selStore.lon! + 0.0324]]; /* ~3 km a la redonda */ zoneLabel = selStore.n; key = 'sel:' + selStore.id; }
   else { const rb = regionBounds(); if (rb) { bounds = rb; zoneLabel = f.regions.size === 1 ? [...f.regions][0] : `${f.regions.size} regiones`; key = 'reg:' + [...f.regions].join(','); } }
 
   const semaphore = (g: number | null) => (g === null ? GREY : g * 100 < th.red ? RED : g * 100 < th.yellow ? AMBER : GREEN);

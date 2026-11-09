@@ -38,8 +38,8 @@ function popupEl(p: MapPoint, onDetails: (id: string) => void): HTMLElement {
   return root;
 }
 
-/** Encuadre de una sala: unos 1.000 m a la redonda. */
-const around = (ll: L.LatLngExpression) => L.latLng(ll).toBounds(2000);
+/** Encuadre de una sala: unos 3 km a la redonda (un cuadrado de 6 km por lado). */
+const around = (ll: L.LatLngExpression) => L.latLng(ll).toBounds(6000);
 
 /** Mapa de zona: comunas, burbujas con semáforo (o calor), ficha emergente, y enfoque desde la lista lateral. */
 export function ZoneMap({ geo, tiles, points, mode, bounds, focusKey, fitNonce = 0, hover, focus, communes, showMarkers, onPick, onMove, height = 620 }: {
@@ -103,7 +103,7 @@ export function ZoneMap({ geo, tiles, points, mode, bounds, focusKey, fitNonce =
         mk.bindTooltip(p.tip, { direction: 'top', offset: [0, -4] });
         if (p.popup) mk.bindPopup(() => popupEl(p, (id) => onPickRef.current(id)), { className: 'so-popup', maxWidth: 270, minWidth: 230, autoPanPadding: [30, 30] });
         else mk.on('click', () => onPickRef.current(p.id));
-        mk.on('click', () => mapRef.current?.flyToBounds(around(mk.getLatLng()), { padding: [24, 24], maxZoom: 17, duration: 0.6 }));
+        mk.on('click', () => mapRef.current?.flyToBounds(around(mk.getLatLng()), { padding: [24, 24], maxZoom: 16, duration: 0.6 }));
         markers.current.set(p.id, mk);
       });
     }
@@ -119,7 +119,7 @@ export function ZoneMap({ geo, tiles, points, mode, bounds, focusKey, fitNonce =
   useEffect(() => {
     if (!focus || !mapRef.current) return;
     const mk = markers.current.get(focus.id); if (!mk) return;
-    mapRef.current.flyToBounds(around(mk.getLatLng()), { padding: [24, 24], maxZoom: 17, duration: 0.6 });
+    mapRef.current.flyToBounds(around(mk.getLatLng()), { padding: [24, 24], maxZoom: 16, duration: 0.6 });
     const t = setTimeout(() => mk.openPopup(), 700);
     return () => clearTimeout(t);
   }, [focus]);
