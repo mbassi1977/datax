@@ -107,6 +107,6 @@ class SelloutProductController extends Controller
     private function present(SelloutProduct $p): array
     {
         return ['id' => $p->id, 'name' => $p->name, 'aliases' => $p->aliases ?? [], 'color' => $p->color, 'units_per_box' => $p->units_per_box, 'sort' => $p->sort, 'active' => $p->active,
-            'image' => $p->image_path ? URL::temporarySignedRoute('media.sellout-product', now()->startOfHour()->addHours(12), ['product' => $p->id], absolute: false) : null];
+            'image' => $p->image_path ? URL::temporarySignedRoute('media.sellout-product', now()->startOfHour()->addHours(12), ['product' => $p->id, 'v' => $p->updated_at?->timestamp], absolute: false) : null];
     }
 }

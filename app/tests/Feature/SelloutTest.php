@@ -294,5 +294,27 @@ class SelloutTest extends TestCase
         $this->getJson('/api/v1/sellout/banners')->assertOk()->assertJsonCount(1);
         $this->as($this->user('admin'));
         $this->deleteJson("/api/v1/sellout/banners/{$b['id']}")->assertNoContent();
+        // un formato eliminado se puede volver a crear con el mismo nombre
+        $again = $this->postJson('/api/v1/sellout/banners?organization_id='.$this->loa->id, ['chain_id' => $chain, 'name' => 'Spid'])->assertCreated()->json();
+        $this->assertNotSame($b['id'], $again['id']);
+    }
+
+    public function test_replacing_a_logo_or_product_image_changes_its_url_so_browsers_do_not_keep_the_old_one(): void
+    {
+        $this->as($this->user('admin'));
+        $chain = $this->postJson('/api/v1/sellout/chains?organization_id='.$this->loa->id, ['name' => 'Tottus'])->json('id');
+        $first = $this->post("/api/v1/sellout/chains/{$chain}/logo", ['file' => UploadedFile::fake()->image('a.png', 100, 100)], ['Accept' => 'application/json'])->json('logo');
+        $this->travel(5)->seconds();
+        $second = $this->post("/api/v1/sellout/chains/{$chain}/logo", ['file' => UploadedFile::fake()->image('b.png', 120, 120)], ['Accept' => 'application/json'])->json('logo');
+        $this->assertNotSame($first, $second);
+
+        $p = $this->postJson('/api/v1/sellout/products?organization_id='.$this->loa->id, ['name' => 'Minga'])->json();
+        $i1 = $this->post("/api/v1/sellout/products/{$p['id']}/image", ['file' => UploadedFile::fake()->image('a.png', 100, 200)], ['Accept' => 'application/json'])->json('image');
+        $this->travel(5)->seconds();
+        $i2 = $this->post("/api/v1/sellout/products/{$p['id']}/image", ['file' => UploadedFile::fake()->image('b.png', 100, 200)], ['Accept' => 'application/json'])->json('image');
+        $this->assertNotSame($i1, $i2);
+        // y un producto eliminado libera su nombre
+        $this->deleteJson("/api/v1/sellout/products/{$p['id']}")->assertNoContent();
+        $this->postJson('/api/v1/sellout/products?organization_id='.$this->loa->id, ['name' => 'Minga'])->assertCreated();
     }
 }

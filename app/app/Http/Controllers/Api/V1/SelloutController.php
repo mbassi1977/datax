@@ -57,10 +57,10 @@ class SelloutController extends Controller
         $idx = array_flip($months);
         $n = count($months);
 
-        $chains = SelloutChain::where('organization_id', $org)->orderBy('sort')->orderBy('name')->get()->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'color' => $c->color, 'logo' => $c->logo_path ? $this->signed('media.sellout-chain-logo', ['chain' => $c->id]) : null]);
+        $chains = SelloutChain::where('organization_id', $org)->orderBy('sort')->orderBy('name')->get()->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'color' => $c->color, 'logo' => $c->logo_path ? $this->signed('media.sellout-chain-logo', ['chain' => $c->id, 'v' => $c->updated_at?->timestamp]) : null]);
         $banners = \App\Models\SelloutBanner::where('organization_id', $org)->orderBy('sort')->orderBy('name')->get()->map(fn ($b) => $this->presentBanner($b));
         $products = \App\Models\SelloutProduct::where('organization_id', $org)->where('active', true)->orderBy('sort')->orderBy('name')->get()
-            ->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'color' => $p->color, 'upb' => $p->units_per_box, 'image' => $p->image_path ? $this->signed('media.sellout-product', ['product' => $p->id]) : null]);
+            ->map(fn ($p) => ['id' => $p->id, 'name' => $p->name, 'color' => $p->color, 'upb' => $p->units_per_box, 'image' => $p->image_path ? $this->signed('media.sellout-product', ['product' => $p->id, 'v' => $p->updated_at?->timestamp]) : null]);
 
         $stores = [];
         foreach (SelloutPoint::where('organization_id', $org)->where('status', 'active')->get() as $p) {
@@ -92,7 +92,7 @@ class SelloutController extends Controller
     {
         $org = $this->client($request, 'sellout.ver');
 
-        return response()->json(SelloutChain::where('organization_id', $org)->orderBy('sort')->orderBy('name')->get()->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'color' => $c->color, 'sort' => $c->sort, 'logo' => $c->logo_path ? $this->signed('media.sellout-chain-logo', ['chain' => $c->id]) : null]));
+        return response()->json(SelloutChain::where('organization_id', $org)->orderBy('sort')->orderBy('name')->get()->map(fn ($c) => ['id' => $c->id, 'name' => $c->name, 'color' => $c->color, 'sort' => $c->sort, 'logo' => $c->logo_path ? $this->signed('media.sellout-chain-logo', ['chain' => $c->id, 'v' => $c->updated_at?->timestamp]) : null]));
     }
 
     public function storeChain(Request $request): JsonResponse
@@ -209,7 +209,7 @@ class SelloutController extends Controller
         $c->logo_path && Storage::disk('local')->delete($c->logo_path);
         $c->update(['logo_path' => $img['path'], 'logo_mime' => $img['mime']]);
 
-        return response()->json(['id' => $c->id, 'logo' => $this->signed('media.sellout-chain-logo', ['chain' => $c->id])]);
+        return response()->json(['id' => $c->id, 'logo' => $this->signed('media.sellout-chain-logo', ['chain' => $c->id, 'v' => $c->updated_at?->timestamp])]);
     }
 
     public function removeChainLogo(Request $request, string $id): JsonResponse
@@ -296,7 +296,7 @@ class SelloutController extends Controller
 
     private function presentBanner(\App\Models\SelloutBanner $b): array
     {
-        return ['id' => $b->id, 'chain_id' => $b->chain_id, 'name' => $b->name, 'aliases' => $b->aliases ?? [], 'sort' => $b->sort, 'logo' => $b->logo_path ? $this->signed('media.sellout-banner-logo', ['banner' => $b->id]) : null];
+        return ['id' => $b->id, 'chain_id' => $b->chain_id, 'name' => $b->name, 'aliases' => $b->aliases ?? [], 'sort' => $b->sort, 'logo' => $b->logo_path ? $this->signed('media.sellout-banner-logo', ['banner' => $b->id, 'v' => $b->updated_at?->timestamp]) : null];
     }
 
     private function signed(string $route, array $params): string
