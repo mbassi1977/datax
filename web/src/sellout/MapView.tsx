@@ -38,9 +38,12 @@ function popupEl(p: MapPoint, onDetails: (id: string) => void): HTMLElement {
   return root;
 }
 
+/** Encuadre de una sala: unos 1.000 m a la redonda. */
+const around = (ll: L.LatLngExpression) => L.latLng(ll).toBounds(2000);
+
 /** Mapa de zona: comunas, burbujas con semáforo (o calor), ficha emergente, y enfoque desde la lista lateral. */
-export function ZoneMap({ geo, tiles, points, mode, bounds, focusKey, hover, focus, communes, showMarkers, onPick, onMove, height = 620 }: {
-  geo: Geo | null; tiles: Tiles; points: MapPoint[]; mode: 'bubbles' | 'heat'; bounds: Bounds; focusKey: string; hover?: string | null;
+export function ZoneMap({ geo, tiles, points, mode, bounds, focusKey, fitNonce = 0, hover, focus, communes, showMarkers, onPick, onMove, height = 620 }: {
+  geo: Geo | null; tiles: Tiles; points: MapPoint[]; mode: 'bubbles' | 'heat'; bounds: Bounds; focusKey: string; fitNonce?: number; hover?: string | null;
   focus: { id: string; n: number } | null; communes: Record<string, string> | null; showMarkers: boolean;
   onPick: (id: string) => void; onMove?: (b: L.LatLngBounds) => void; height?: number;
 }) {
@@ -76,6 +79,9 @@ export function ZoneMap({ geo, tiles, points, mode, bounds, focusKey, hover, foc
     if (!saved || saved.key !== focusKey) m.fitBounds(bounds, { padding: [14, 14], animate: true, maxZoom: 15 });
   }, [focusKey, bounds, geo, tiles]);
 
+  // 2b) Los botones de zona (Auto, Gran Santiago…) reencuadran aunque el foco no haya cambiado.
+  useEffect(() => { if (fitNonce && mapRef.current) mapRef.current.fitBounds(boundsRef.current, { padding: [14, 14], animate: true, maxZoom: 15 }); }, [fitNonce]);
+
   // 3) Comunas, calor y burbujas se rehacen cuando cambian los datos.
   useEffect(() => {
     const m = mapRef.current, g = layer.current; if (!m || !g || !geo) return;
@@ -97,6 +103,7 @@ export function ZoneMap({ geo, tiles, points, mode, bounds, focusKey, hover, foc
         mk.bindTooltip(p.tip, { direction: 'top', offset: [0, -4] });
         if (p.popup) mk.bindPopup(() => popupEl(p, (id) => onPickRef.current(id)), { className: 'so-popup', maxWidth: 270, minWidth: 230, autoPanPadding: [30, 30] });
         else mk.on('click', () => onPickRef.current(p.id));
+        mk.on('click', () => mapRef.current?.flyToBounds(around(mk.getLatLng()), { padding: [24, 24], maxZoom: 17, duration: 0.6 }));
         markers.current.set(p.id, mk);
       });
     }
@@ -112,8 +119,8 @@ export function ZoneMap({ geo, tiles, points, mode, bounds, focusKey, hover, foc
   useEffect(() => {
     if (!focus || !mapRef.current) return;
     const mk = markers.current.get(focus.id); if (!mk) return;
-    mapRef.current.flyTo(mk.getLatLng(), Math.max(mapRef.current.getZoom(), 13), { duration: 0.6 });
-    const t = setTimeout(() => mk.openPopup(), 650);
+    mapRef.current.flyToBounds(around(mk.getLatLng()), { padding: [24, 24], maxZoom: 17, duration: 0.6 });
+    const t = setTimeout(() => mk.openPopup(), 700);
     return () => clearTimeout(t);
   }, [focus]);
 

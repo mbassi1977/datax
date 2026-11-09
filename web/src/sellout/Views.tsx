@@ -99,7 +99,9 @@ export function MapaView({ ctx, metaMonth }: { ctx: Ctx; metaMonth: number }) {
   const [metric, setMetric] = useState<Metric>('sales');
   const [mode, setMode] = useState<'bubbles' | 'heat'>('bubbles');
   const [th, setTh] = useState({ red: 0, yellow: 3 });                      // semáforo de crecimiento, en %
-  const [zoom, setZoom] = useState<string>('auto');
+  const [zoom, setZoomRaw] = useState<string>('auto');
+  const [fitNonce, setFitNonce] = useState(0);
+  const setZoom = (z: string) => { setZoomRaw(z); setFitNonce((n) => n + 1); };
   const [view, setView] = useState<L.LatLngBounds | null>(null);
   const [showMarkers, setShowMarkers] = useState(true);
   const [zones, setZones] = useState<'none' | 'commune'>('none');
@@ -122,7 +124,7 @@ export function MapaView({ ctx, metaMonth }: { ctx: Ctx; metaMonth: number }) {
   };
   let bounds = ZOOMS.rm.b, zoneLabel = ZOOMS.rm.l, key = 'rm';
   if (zoom !== 'auto') { bounds = ZOOMS[zoom].b; zoneLabel = ZOOMS[zoom].l; key = zoom; }
-  else if (selStore?.lat != null) { bounds = [[selStore.lat - 0.055, selStore.lon! - 0.07], [selStore.lat + 0.055, selStore.lon! + 0.07]]; zoneLabel = selStore.n; key = 'sel:' + selStore.id; }
+  else if (selStore?.lat != null) { bounds = [[selStore.lat - 0.009, selStore.lon! - 0.0108], [selStore.lat + 0.009, selStore.lon! + 0.0108]]; /* ~1 km a la redonda */ zoneLabel = selStore.n; key = 'sel:' + selStore.id; }
   else { const rb = regionBounds(); if (rb) { bounds = rb; zoneLabel = f.regions.size === 1 ? [...f.regions][0] : `${f.regions.size} regiones`; key = 'reg:' + [...f.regions].join(','); } }
 
   const semaphore = (g: number | null) => (g === null ? GREY : g * 100 < th.red ? RED : g * 100 < th.yellow ? AMBER : GREEN);
@@ -213,7 +215,7 @@ export function MapaView({ ctx, metaMonth }: { ctx: Ctx; metaMonth: number }) {
 
         <div className="so-mapwrap">
           <div className="so-stage">
-            <ZoneMap geo={ctx.geo} tiles={ctx.tiles} points={points} mode={mode} bounds={bounds} focusKey={key} hover={hover} focus={focus} communes={communes} showMarkers={showMarkers} onPick={ctx.open} onMove={setView} />
+            <ZoneMap geo={ctx.geo} tiles={ctx.tiles} points={points} mode={mode} bounds={bounds} focusKey={key} fitNonce={fitNonce} hover={hover} focus={focus} communes={communes} showMarkers={showMarkers} onPick={ctx.open} onMove={setView} />
 
             <div className={`so-ctrl${ctrlOpen ? '' : ' closed'}`}>
               <button className="hd" onClick={() => setCtrlOpen(!ctrlOpen)} aria-expanded={ctrlOpen}>☰ Controlador</button>
