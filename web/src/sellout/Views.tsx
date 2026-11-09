@@ -322,7 +322,8 @@ export function EntornoView({ ctx, nearId, setNear }: { ctx: Ctx; nearId: string
       <div className="so-grid2">
         <section className="so-card">
           <NearMap geo={ctx.geo} tiles={ctx.tiles} boundsKey={`${base.id}|${nn}|${same}`} onPick={setNear}
-            base={{ id: base.id, lat: base.lat, lon: base.lon!, name: base.n, color: '' }} neighbors={N.map((n) => ({ id: n.s.id, lat: n.s.lat!, lon: n.s.lon!, name: n.s.n, km: n.d, color: chainColor(ds, n.s.ch) }))} />
+            base={{ id: base.id, lat: base.lat, lon: base.lon!, name: base.n, chain: chainOf(ds, base.ch), color: chainColor(ds, base.ch), logo: logoOf(ds, base), info: `Venta ${money(B.cur.s)}` }}
+            neighbors={N.map((n) => ({ id: n.s.id, lat: n.s.lat!, lon: n.s.lon!, name: n.s.n, chain: chainOf(ds, n.s.ch), color: chainColor(ds, n.s.ch), logo: logoOf(ds, n.s), km: n.d, info: `Venta ${money(n.cur.s)}` }))} />
           <p className="hint" style={{ margin: '8px 0 0' }}>Distancias aproximadas: cada sala está ubicada en su comuna, no en su calle, salvo las que tienen ubicación exacta.</p>
         </section>
         <section className="so-card">

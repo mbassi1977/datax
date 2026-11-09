@@ -55,3 +55,17 @@
 /* Editor de ubicación de una sala */
 .so-map.picker { border: 1px solid var(--border); border-radius: 8px; }
 .so-pin span { display: block; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; background: var(--primary); border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0,0,0,.5); transform: rotate(-45deg); cursor: grab; }
+
+/* Entorno: cada sala con su logo y nombre */
+.so-nmw { background: transparent; border: 0; }
+.so-nm { position: relative; width: var(--s); height: var(--s); }
+.so-nm .ic { position: absolute; inset: 0; display: grid; place-items: center; overflow: hidden; border-radius: 50%; background: #fff; border: 3px solid var(--c); box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+.so-nm .ic img { width: 84%; height: 84%; object-fit: contain; }
+.so-nm .ic i { font-style: normal; font-weight: 700; font-size: calc(var(--s) * .34); color: var(--c); }
+.so-nm .tx { position: absolute; left: calc(var(--s) + 6px); top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; white-space: nowrap; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; box-shadow: 0 2px 6px rgba(0,0,0,.25); line-height: 1.2; }
+.so-nm .tx b { font-size: .74rem; } .so-nm .tx small { font-size: .64rem; color: var(--muted); }
+.so-nm.sel .ic { border-color: var(--primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 35%, transparent), 0 3px 10px rgba(0,0,0,.5); }
+.so-nm.sel .tx { border-color: var(--primary); background: var(--primary); color: var(--primary-text); }
+.so-nm.sel .tx b { font-size: .84rem; } .so-nm.sel .tx small { color: inherit; opacity: .85; }
+.so-nm.left .tx { left: auto; right: calc(var(--s) + 6px); }
+.so-nm.sel .tx { left: 50%; right: auto; top: auto; bottom: calc(var(--s) + 6px); transform: translateX(-50%); }

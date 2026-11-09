@@ -155,9 +155,22 @@ const nrm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCas
 export function regionKey(name: string): string | null { const n = nrm(name); return REGION_KEYS.find(([k]) => n.includes(k))?.[1] ?? null; }
 
 /** Mapa de entorno: una sala elegida y las más cercanas, con distancia. */
+export type NearPin = { id: string; lat: number; lon: number; name: string; chain: string; color: string; logo: string | null; km?: number; info?: string };
+
+const escHtml = (t: string) => t.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+/** Ficha de una sala sobre el mapa: logo (o iniciales), nombre y distancia; la sala elegida va más grande y resaltada. */
+function pinIcon(p: NearPin, selected: boolean, left = false): L.DivIcon {
+  const ini = escHtml(p.chain.replace(/[^A-Za-zÁÉÍÓÚÑáéíóúñ ]/g, '').trim().slice(0, 2).toUpperCase());
+  const ic = p.logo ? `<img src="${escHtml(p.logo)}" alt="">` : `<i>${ini}</i>`;
+  const km = p.km !== undefined ? `<small>${p.km.toLocaleString('es-CL', { maximumFractionDigits: 1 })} km</small>` : `<small>sala elegida</small>`;
+  const size = selected ? 52 : 38;
+  return L.divIcon({ className: 'so-nmw', iconSize: [size, size], iconAnchor: [size / 2, size / 2],
+    html: `<div class="so-nm${selected ? ' sel' : ''}${left ? ' left' : ''}" style="--c:${p.color};--s:${size}px"><span class="ic">${ic}</span><span class="tx"><b>${escHtml(p.name)}</b>${km}</span></div>` });
+}
+
+/** Mapa de entorno: una sala elegida y las más cercanas, cada una con su logo y nombre, y la distancia. */
 export function NearMap({ geo, tiles, base, neighbors, onPick, boundsKey }: {
-  geo: Geo | null; tiles: Tiles; base: { id: string; lat: number; lon: number; name: string; color: string };
-  neighbors: { id: string; lat: number; lon: number; name: string; km: number; color: string }[]; onPick: (id: string) => void; boundsKey: string;
+  geo: Geo | null; tiles: Tiles; base: NearPin; neighbors: NearPin[]; onPick: (id: string) => void; boundsKey: string;
 }) {
   const el = useRef<HTMLDivElement>(null);
   const onPickRef = useRef(onPick); onPickRef.current = onPick;
@@ -166,22 +179,22 @@ export function NearMap({ geo, tiles, base, neighbors, onPick, boundsKey }: {
     const m = L.map(el.current, { preferCanvas: true, scrollWheelZoom: false, dragging: !L.Browser.mobile, zoomSnap: 0.25, zoomDelta: 0.5, minZoom: 3 });
     m.attributionControl.setPrefix(false);
     const pts: [number, number][] = [[base.lat, base.lon], ...neighbors.map((n) => [n.lat, n.lon] as [number, number])];
-    m.fitBounds(L.latLngBounds(pts).pad(0.35), { animate: false, maxZoom: 16 });
+    m.fitBounds(L.latLngBounds(pts), { animate: false, maxZoom: 16, paddingTopLeft: [170, 70], paddingBottomRight: [170, 50] });
     m.on('click focus', () => m.scrollWheelZoom.enable()); m.on('mouseout blur', () => m.scrollWheelZoom.disable());
     if (tiles) L.tileLayer(tiles.url, { maxZoom: 19, attribution: tiles.attribution }).addTo(m);
     L.geoJSON(geo.comunas, { style: () => ({ color: themeColor('--border', '#c3cddb'), weight: tiles ? 1 : 0.8, opacity: tiles ? 0.7 : 1, fillColor: themeColor('--surface', '#fff'), fillOpacity: tiles ? 0 : 1 }), onEachFeature: (f, l) => l.bindTooltip(String(f.properties.Comuna), { sticky: true }) }).addTo(m);
-    const accent = themeColor('--primary', '#2a78d6');
-    neighbors.forEach((n) => L.polyline([[base.lat, base.lon], [n.lat, n.lon]], { color: themeColor('--muted', '#667085'), weight: 1.2, dashArray: '5 4', opacity: 0.8 }).addTo(m));
+    neighbors.forEach((n) => L.polyline([[base.lat, base.lon], [n.lat, n.lon]], { color: themeColor('--muted', '#667085'), weight: 1.4, dashArray: '5 4', opacity: 0.8 }).addTo(m));
     neighbors.forEach((n) => {
-      const mk = L.circleMarker([n.lat, n.lon], { radius: 7, fillColor: n.color, fillOpacity: 1, color: '#fff', weight: 2 }).addTo(m);
-      mk.bindTooltip(`${n.name} · ${n.km.toLocaleString('es-CL', { maximumFractionDigits: 1 })} km`, { permanent: true, direction: 'right', offset: [10, 0], className: 'so-lbl' });
+      const mk = L.marker([n.lat, n.lon], { icon: pinIcon(n, false, n.lon < base.lon), zIndexOffset: 100, keyboard: true, title: n.name }).addTo(m);
+      mk.bindTooltip(`<b>${escHtml(n.name)}</b><br>${escHtml(n.chain)}${n.km !== undefined ? ' · ' + n.km.toLocaleString('es-CL', { maximumFractionDigits: 1 }) + ' km' : ''}${n.info ? '<br>' + escHtml(n.info) : ''}<br><i>Toque para centrar el análisis aquí</i>`, { direction: 'top', offset: [0, -22] });
       mk.on('click', () => onPickRef.current(n.id));
     });
-    L.circleMarker([base.lat, base.lon], { radius: 11, fillColor: accent, fillOpacity: 1, color: '#fff', weight: 2 }).addTo(m).bindTooltip(`<b>${base.name}</b>`, { permanent: true, direction: 'right', offset: [12, 0], className: 'so-lbl' });
+    const bm = L.marker([base.lat, base.lon], { icon: pinIcon(base, true), zIndexOffset: 1000, title: base.name }).addTo(m);
+    bm.bindTooltip(`<b>${escHtml(base.name)}</b><br>${escHtml(base.chain)}${base.info ? '<br>' + escHtml(base.info) : ''}`, { direction: 'top', offset: [0, -30] });
     const t = setTimeout(() => m.invalidateSize(), 0);
     return () => { clearTimeout(t); m.remove(); };
   }, [geo, tiles, boundsKey]);   // eslint-disable-line react-hooks/exhaustive-deps
-  return <div ref={el} className="so-map" style={{ height: 460 }} role="application" aria-label="Mapa del entorno de la sala" />;
+  return <div ref={el} className="so-map" style={{ height: 520 }} role="application" aria-label="Mapa del entorno de la sala" />;
 }
 
 /** Editor de ubicación: el punto se arrastra, o se toca el mapa para colocarlo. Los cambios salen por onChange con 6 decimales. */
