@@ -54,7 +54,7 @@ abstract class ScopedResourceController extends Controller
             $query->where(fn ($q) => collect($this->searchable())->each(fn ($c) => $q->orWhere($c, 'ilike', $term)));
         }
 
-        return response()->json($query->latest('created_at')->paginate(50));
+        return response()->json($query->latest('created_at')->paginate(min(500, max(1, (int) $request->query('per_page', 50)))));
     }
 
     public function show(Request $request, string $id): JsonResponse
