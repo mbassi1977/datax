@@ -104,6 +104,7 @@ export const groupOrder = ['Estructura', 'Personas y proyectos', 'Auditoría en 
 
 // Pantallas con interfaz propia (no son un CRUD genérico).
 export const pages: NavItem[] = [
+  { id: 'surveys', title: 'Levantamientos', perm: 'levantamientos', group: 'Auditoría en terreno' },
   { id: 'my-audits', title: 'Mis auditorías', perm: 'auditorias', action: 'ejecutar', group: 'Auditoría en terreno' },
   { id: 'field-audits', title: 'Auditorías', perm: 'auditorias', anyAction: ['crear', 'aprobar'], group: 'Auditoría en terreno' },
   { id: 'field-findings', title: 'Hallazgos', perm: 'hallazgos', group: 'Auditoría en terreno' },

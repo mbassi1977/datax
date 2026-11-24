@@ -11,6 +11,7 @@ import { MfaPanel } from './MfaPanel';
 import { PhotoEditor } from './PhotoEditor';
 import { TemplatesPage } from './TemplatesPage';
 import { AuditsPage } from './AuditsPage';
+import { SurveysPage } from './SurveysPage';
 import { FindingsPage } from './FindingsPage';
 import { setLocale } from './fmt';
 import { AvatarGalleriesPage } from './AvatarGalleriesPage';
@@ -291,6 +292,7 @@ function Shell({ me, reload }: { me: Me; reload: () => void }) {
           : current?.id === 'settings' ? <SettingsPage me={me} reload={reload} />
           : current?.id === 'audit' ? <AuditPage />
           : current?.id === 'field-templates' ? <TemplatesPage me={me} id={param} />
+          : current?.id === 'surveys' ? <SurveysPage me={me} id={param} />
           : current?.id === 'field-audits' ? <AuditsPage me={me} id={param} />
           : current?.id === 'my-audits' ? <AuditsPage me={me} id={param} mine />
           : current?.id === 'field-findings' ? <FindingsPage me={me} />
