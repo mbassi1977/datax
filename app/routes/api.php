@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\V1\SettingsController;
 use App\Http\Controllers\Api\V1\BranchController;
 use App\Http\Controllers\Api\V1\CostCenterController;
 use App\Http\Controllers\Api\V1\FieldAuditController;
+use App\Http\Controllers\Api\V1\FieldSurveyController;
+use App\Http\Controllers\Api\V1\FieldSyncController;
 use App\Http\Controllers\Api\V1\FieldAuditFindingController;
 use App\Http\Controllers\Api\V1\FieldAuditTemplateController;
 use App\Http\Controllers\Api\V1\HoldingController;
@@ -97,6 +99,17 @@ Route::prefix('v1')->group(function () {
         Route::post('audits/{id}/submit', [FieldAuditController::class, 'submit'])->middleware('permission:auditorias.ejecutar');
         Route::post('audits/{id}/approve', [FieldAuditController::class, 'approve'])->middleware('permission:auditorias.aprobar');
         Route::post('audits/{id}/return', [FieldAuditController::class, 'sendBack'])->middleware('permission:auditorias.aprobar');
+
+        // Levantamientos en terreno (campañas) y sincronización de la app sin conexión
+        Route::get('surveys', [FieldSurveyController::class, 'index'])->middleware('permission:levantamientos.ver');
+        Route::post('surveys', [FieldSurveyController::class, 'store'])->middleware('permission:levantamientos.crear');
+        Route::get('surveys/{id}', [FieldSurveyController::class, 'show'])->middleware('permission:levantamientos.ver');
+        Route::put('surveys/{id}', [FieldSurveyController::class, 'update'])->middleware('permission:levantamientos.editar');
+        Route::post('surveys/{id}/assign', [FieldSurveyController::class, 'assign'])->middleware('permission:levantamientos.crear');
+        Route::post('surveys/{id}/close', [FieldSurveyController::class, 'close'])->middleware('permission:levantamientos.editar');
+        Route::delete('surveys/{id}', [FieldSurveyController::class, 'destroy'])->middleware('permission:levantamientos.eliminar');
+        Route::get('sync/field/pull', [FieldSyncController::class, 'pull'])->middleware('permission:auditorias.ejecutar');
+        Route::post('sync/field/push', [FieldSyncController::class, 'push'])->middleware('throttle:120,1')->middleware('permission:auditorias.ejecutar');
 
         Route::get('findings', [FieldAuditFindingController::class, 'index'])->middleware('permission:hallazgos.ver');
         Route::post('findings', [FieldAuditFindingController::class, 'store'])->middleware('permission:hallazgos.crear');
