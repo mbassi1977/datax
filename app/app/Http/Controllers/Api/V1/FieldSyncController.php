@@ -28,9 +28,9 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  */
 class FieldSyncController extends Controller
 {
-    private const TYPES = ['start', 'answers', 'submit'];
+    private const TYPES = ['start', 'answers', 'submit', 'branch'];
 
-    public function __construct(private AccessService $access, private FieldAuditController $audits) {}
+    public function __construct(private AccessService $access, private FieldAuditController $audits, private BranchController $branches) {}
 
     public function pull(Request $request): JsonResponse
     {
@@ -45,8 +45,22 @@ class FieldSyncController extends Controller
         $branches = DB::table('core.branches')->whereIn('id', $changed->pluck('branch_id')->filter())->get(['id', 'name', 'address'])->keyBy('id');
         $orgs = DB::table('core.organizations')->whereIn('id', $changed->pluck('organization_id'))->pluck('legal_name', 'id');
 
+        $profile = $request->header('X-Profile');
+        $seeOrgs = $this->access->allowedOrganizationIds($user, 'sucursales.ver', $profile);     // null = global
+        $runOrgs = $this->access->allowedOrganizationIds($user, 'auditorias.ejecutar', $profile);
+        $canCreate = $this->access->can($user, 'sucursales.crear', $profile);
+
         return response()->json([
             'server_time' => now()->toIso8601String(),
+            // Lo que el perfil permite hacer en terreno: leer sucursales existentes y/o crear nuevas.
+            'can' => ['read_branches' => $this->access->can($user, 'sucursales.ver', $profile), 'create_branches' => $canCreate],
+            'branches' => $this->access->can($user, 'sucursales.ver', $profile)
+                ? DB::table('core.branches')->where('tenant_id', $user->tenant_id)->whereNull('deleted_at')->when($seeOrgs !== null, fn ($q) => $q->whereIn('organization_id', $seeOrgs))
+                    ->orderBy('name')->limit(5000)->get(['id', 'organization_id', 'name', 'address', 'commune'])
+                : [],
+            // Levantamientos activos donde el colector puede abrir un local por su cuenta (p. ej. uno recién creado).
+            'open_surveys' => \App\Models\FieldSurvey::where('tenant_id', $user->tenant_id)->where('status', 'active')->when($runOrgs !== null, fn ($q) => $q->whereIn('organization_id', $runOrgs))
+                ->get(['id', 'name', 'organization_id']),
             'active_ids' => $activeIds,                         // lo que ya no está aquí (enviado, cancelado) puede borrarse del dispositivo
             'audits' => $changed->map(fn ($a) => [
                 'id' => $a->id, 'survey_id' => $a->survey_id, 'title' => $a->title, 'status' => $a->status, 'scheduled_for' => $a->scheduled_for?->toDateString(), 'due_on' => $a->due_on?->toDateString(),
@@ -63,7 +77,7 @@ class FieldSyncController extends Controller
         $user = $request->user();
         $data = $request->validate([
             'ops' => ['required', 'array', 'min:1', 'max:100'], 'ops.*.op_id' => ['required', 'string', 'max:64'], 'ops.*.type' => ['required', 'in:'.implode(',', self::TYPES)],
-            'ops.*.audit_id' => ['required', 'uuid'], 'ops.*.device_at' => ['nullable', 'date'],
+            'ops.*.audit_id' => ['required_unless:ops.*.type,branch', 'nullable', 'uuid'], 'ops.*.device_at' => ['nullable', 'date'],
         ]);
         abort_unless($this->access->can($user, 'auditorias.ejecutar', $request->header('X-Profile')), 403, 'Su perfil no ejecuta levantamientos.');
 
@@ -82,6 +96,9 @@ class FieldSyncController extends Controller
             return ['outcome' => $seen->outcome, 'status' => (int) $seen->http_status, 'result' => json_decode($seen->result ?? 'null', true), 'duplicate' => true];
         }
 
+        if ($op['type'] === 'branch') {
+            return $this->finish($user, $op, null, ...$this->createBranch($request, $op));
+        }
         $audit = FieldAudit::where('tenant_id', $user->tenant_id)->where('auditor_id', $user->id)->find($op['audit_id']);
         $status = 200;
         $body = null;
@@ -95,6 +112,11 @@ class FieldSyncController extends Controller
             [$status, $body] = $this->dispatch($request, $op, $audit);
         }
 
+        return $this->finish($user, $op, $audit, $status, $body);
+    }
+
+    private function finish($user, array $op, ?FieldAudit $audit, int $status, $body): array
+    {
         if ($status >= 500) {
             return ['outcome' => 'retry', 'status' => $status, 'result' => $body];     // no se registra: se reintenta
         }
@@ -131,5 +153,48 @@ class FieldSyncController extends Controller
         } catch (HttpException $e) {
             return [$e->getStatusCode(), ['message' => $e->getMessage()]];
         }
+    }
+
+    /**
+     * Crea una sucursal hallada en terreno, con el mismo permiso y alcance que la API de sucursales (sucursales.crear).
+     * Con survey_id, además abre el local en ese levantamiento para el propio colector (devuelve audit_id).
+     */
+    private function createBranch(Request $parent, array $op): array
+    {
+        $payload = array_intersect_key($op, array_flip(['organization_id', 'name', 'address', 'commune']));
+        $sub = Request::create('/', 'POST', $payload);
+        $sub->setUserResolver(fn () => $parent->user());
+        $sub->headers->set('X-Profile', (string) $parent->header('X-Profile'));
+
+        try {
+            return DB::transaction(function () use ($sub, $op, $parent) {      // si no puede abrirla en el levantamiento, tampoco se crea la sucursal
+                $branch = $this->branches->store($sub)->getData(true);
+                $body = ['branch' => ['id' => $branch['id'], 'organization_id' => $branch['organization_id'], 'name' => $branch['name']]];
+                if (! empty($op['survey_id'])) {
+                    $body['audit_id'] = $this->openOwn($parent, $op['survey_id'], $branch['id']);
+                }
+
+                return [201, $body];
+            });
+        } catch (ValidationException $e) {
+            return [422, ['message' => 'Datos no válidos.', 'errors' => $e->errors()]];
+        } catch (HttpException $e) {
+            return [$e->getStatusCode(), ['message' => $e->getMessage()]];
+        }
+    }
+
+    private function openOwn(Request $request, string $surveyId, string $branchId): string
+    {
+        $user = $request->user();
+        $s = \App\Models\FieldSurvey::where('tenant_id', $user->tenant_id)->where('status', 'active')->find($surveyId);
+        abort_unless($s && $this->access->canOnOrganization($user, 'auditorias.ejecutar', $s->organization_id, $request->header('X-Profile')), 403, 'No puede abrir locales en este levantamiento.');
+        $t = \App\Models\FieldAuditTemplate::where('tenant_id', $user->tenant_id)->findOrFail($s->template_id);
+        $name = DB::table('core.branches')->where('id', $branchId)->value('name');
+
+        return FieldAudit::create([
+            'tenant_id' => $user->tenant_id, 'survey_id' => $s->id, 'template_id' => $t->id, 'template_name' => $t->name, 'template_version' => $t->version, 'pass_threshold' => $t->pass_threshold,
+            'scoring_enabled' => (bool) $t->scoring_enabled, 'structure' => $t->structure, 'title' => "{$s->name} · {$name}", 'organization_id' => $s->organization_id, 'branch_id' => $branchId,
+            'auditor_id' => $user->id, 'scheduled_for' => now()->toDateString(), 'status' => 'scheduled', 'created_by' => $user->id,
+        ])->id;
     }
 }

@@ -142,3 +142,18 @@ Venta en sala de un **cliente** (marca) en las cadenas de retail: tablero con re
 - **Mapas**: límites oficiales de regiones y comunas incluidos; se arrastran y acercan; capa de calles configurable en Configuración → Mapas (por defecto OpenStreetMap; para mucho tráfico use un proveedor con contrato). Las salas se ubican por comuna hasta que se corrige su latitud/longitud (queda «exacta»); un geocodificador por dirección es el siguiente paso.
 - API (`/api/v1/sellout/...`): `clients`, `dataset`, `chains`, `products` (+`/image`), `points` (+`/detail`, `/notes`, `/photos`), `requests` (+`/respond`, `/close`, `/reopen`). El tablero calcula períodos y comparaciones en el navegador a partir de `dataset` (ideal hasta unos cientos de salas por cliente).
 - Servidor: la base necesita el esquema `sellout` (migración) y, si `DB_SEARCH_PATH` está fijado en `.env`, agregarlo; para cargas grandes subir `upload_max_filesize`/`post_max_size` (60 MB) y `memory_limit`.
+
+
+## Levantamientos en terreno (app offline)
+
+Campañas (`/surveys`) que reparten una plantilla publicada entre varios locales y colectores; cada local es una auditoría con su copia de la plantilla.
+Permisos `levantamientos.{ver,crear,editar,eliminar}`; el colector solo necesita `auditorias.ejecutar`.
+
+- `POST /surveys`, `POST /surveys/{id}/assign` (`assignments:[{branch_id,auditor_id}]`), `POST /surveys/{id}/close`, `GET /surveys/{id}` (avance por local).
+- **Sincronización** (la app trabaja sin conexión):
+  1. `GET /sync/field/pull[?since=ISO]` → mis levantamientos con plantilla, respuestas y `evidence_client_ids`; `active_ids` (lo ausente se borra del dispositivo);
+     `can.{read_branches,create_branches}` y `branches` (según permisos `sucursales.*` y alcance); `open_surveys`.
+  2. `POST /sync/field/push` `{ops:[...]}` en orden, máx. 100. Cada op lleva `op_id` (UUID del dispositivo): `start`, `answers` (con `client_updated_at`), `submit`,
+     `branch` (crea una sucursal hallada en terreno; con `survey_id` abre ese local para el colector). Resultado por op: `ok` | `rejected` (no reintentar) | `retry`.
+     Reenviar un `op_id` devuelve el mismo resultado (`duplicate:true`).
+  3. Fotos: `POST /audits/{id}/evidence` con `client_id` (idempotente). Orden recomendado: start/answers → fotos → submit.

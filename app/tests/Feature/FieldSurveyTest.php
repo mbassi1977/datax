@@ -153,4 +153,35 @@ class FieldSurveyTest extends TestCase
         $this->assertSame(['ok', 'rejected'], array_column($r, 'outcome'));
         $this->assertSame(422, $r[1]['status']);
     }
+
+    public function test_field_user_reads_and_creates_branches_according_to_permissions(): void
+    {
+        $admin = $this->user('admin');
+        $c1 = $this->user('auditor');                       // el perfil auditor no tiene sucursales.*
+        $tpl = $this->template($admin);
+        $sid = $this->postJson('/api/v1/surveys', ['template_id' => $tpl, 'organization_id' => $this->org->id, 'name' => 'Precios'])->json('id');
+        $this->postJson("/api/v1/surveys/{$sid}/assign", ['assignments' => [['branch_id' => $this->branches['Centro'], 'auditor_id' => $c1->id]]]);
+
+        $p = $this->as($c1)->getJson('/api/v1/sync/field/pull')->assertOk();
+        $p->assertJsonPath('can.read_branches', false)->assertJsonPath('can.create_branches', false)->assertJsonCount(0, 'branches')->assertJsonCount(1, 'open_surveys');
+        $op = ['op_id' => 'b1', 'type' => 'branch', 'organization_id' => $this->org->id, 'name' => 'Local nuevo', 'survey_id' => $sid];
+        $this->postJson('/api/v1/sync/field/push', ['ops' => [$op]])->assertJsonPath('results.0.outcome', 'rejected')->assertJsonPath('results.0.status', 403);
+        $this->assertSame(0, DB::table('core.branches')->where('name', 'Local nuevo')->count());
+
+        // con permisos de lectura y alta de sucursales
+        $perms = DB::table('security.permissions')->whereIn('code', ['sucursales.ver', 'sucursales.crear'])->pluck('id');
+        $pid = DB::table('security.profiles')->where('code', 'auditor')->value('id');
+        foreach ($perms as $perm) {
+            DB::table('security.profile_permissions')->insertOrIgnore(['profile_id' => $pid, 'permission_id' => $perm]);
+        }
+        $this->app['auth']->forgetGuards();
+        $p = $this->as($c1)->getJson('/api/v1/sync/field/pull')->assertJsonPath('can.create_branches', true);
+        $this->assertCount(3, $p->json('branches'));
+        $op['op_id'] = 'b2';                                  // una operación rechazada queda rechazada: el reintento lleva otro op_id
+        $r = $this->postJson('/api/v1/sync/field/push', ['ops' => [$op]])->assertJsonPath('results.0.outcome', 'ok')->json('results.0.result');
+        $this->assertSame('Local nuevo', $r['branch']['name']);
+        $this->assertSame($c1->id, DB::table('fieldaudit.audits')->where('id', $r['audit_id'])->value('auditor_id'));
+        $this->postJson('/api/v1/sync/field/push', ['ops' => [$op]])->assertJsonPath('results.0.duplicate', true);       // reintento: no duplica
+        $this->assertSame(1, DB::table('core.branches')->where('name', 'Local nuevo')->count());
+    }
 }
